@@ -3,12 +3,15 @@ package com.shhdoc.auth;
 import static org.springframework.http.HttpHeaders.AUTHORIZATION;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
 import com.shhdoc.TestcontainersConfiguration;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -72,6 +75,33 @@ class AuthIntegrationTest {
                                 {"email":"carol@shhdoc.com","password":"password123","name":"carol"}
                                 """))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void 허용된_프론트_주소는_preflight를_통과한다() throws Exception {
+        for (String origin : List.of("https://mail.shhdoc.daeonlab.com", "http://localhost:3000")) {
+            mockMvc.perform(options("/auth/login")
+                            .header("Origin", origin)
+                            .header("Access-Control-Request-Method", "POST")
+                            .header("Access-Control-Request-Headers", "content-type"))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string("Access-Control-Allow-Origin", origin));
+        }
+    }
+
+    @Test
+    void 허용하지_않은_주소는_preflight가_막힌다() throws Exception {
+        mockMvc.perform(options("/auth/login")
+                        .header("Origin", "https://evil.example.com")
+                        .header("Access-Control-Request-Method", "POST"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void swagger_진입_주소가_인증없이_열린다() throws Exception {
+        // /swagger-ui.html 은 /swagger-ui/** 패턴에 걸리지 않아 따로 열어줘야 한다
+        mockMvc.perform(get("/swagger-ui.html")).andExpect(status().is3xxRedirection());
+        mockMvc.perform(get("/swagger-ui/index.html")).andExpect(status().isOk());
     }
 
     @Test
