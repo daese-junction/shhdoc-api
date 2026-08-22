@@ -8,6 +8,11 @@ services:
       - 'MYSQL_ROOT_PASSWORD=root'
     ports:
       - '3306:3306'
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-u', 'root', '-proot']
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   app:
     build:
@@ -18,9 +23,11 @@ services:
       - 'SPRING_DATASOURCE_USERNAME=shhdoc'
       - 'SPRING_DATASOURCE_PASSWORD=shhdoc'
     depends_on:
-      - mysql
+      mysql:
+        condition: service_healthy
     ports:
       - '8080:8080'
+    restart: on-failure
 
   nginx:
     image: 'nginx:1.27'
