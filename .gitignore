@@ -39,3 +39,7 @@ out/
 ### 시크릿 ###
 .env
 **/application-local.yml
+
+### 배포 산출물 ###
+# CI 가 러너에서 빌드해 scp 로 서버에 올리는 jar. 레포에는 들어가지 않는다.
+deploy/app.jar

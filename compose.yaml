@@ -47,6 +47,9 @@ services:
       - 'SPRING_DATASOURCE_USERNAME=shhdoc'
       - 'SPRING_DATASOURCE_PASSWORD=${MYSQL_PASSWORD:-shhdoc}'
       - 'JWT_SECRET=${JWT_SECRET}'
+      # .env 에 있어도 여기 안 적으면 컨테이너로 안 넘어간다. 비면 Bearer 뒤가 비어
+      # 업스테이지가 401 을 주고, 모든 첨부가 "검사 실패 → 보류" 로 떨어진다.
+      - 'UPSTAGE_API_KEY=${UPSTAGE_API_KEY}'
       - 'STORAGE_ENDPOINT=http://minio:9000'
       - 'STORAGE_PUBLIC_ENDPOINT=${STORAGE_PUBLIC_ENDPOINT:-https://shhdoc-storage.daeonlab.com}'
       - 'STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY:-shhdoc}'
