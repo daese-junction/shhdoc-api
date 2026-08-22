@@ -76,7 +76,7 @@ class MailProcessorTest {
                 new ParsedDocument(new ParsedContent("", "", ""), List.of(), 1),
                 new ClassificationResult("payslip", 0.9),
                 new ExtractionResult(List.of(), true, false, ""));
-        MailContext context = new MailContext("a@a.com", List.of(), "payslip", List.of(), true, false, "");
+        MailContext context = new MailContext("a@a.com", List.of(), null, "payslip", List.of(), true, false, "");
         Policy policy = new Policy(100, List.of());
         Verdict verdict = new Verdict(ScanStatus.REVIEW, "사유");
 

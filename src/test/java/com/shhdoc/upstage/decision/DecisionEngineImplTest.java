@@ -30,13 +30,14 @@ class DecisionEngineImplTest {
         decisionEngine = new DecisionEngineImpl(generator);
     }
 
-    private MailContext contextWithCategory(String category) {
-        return new MailContext("a@a.com", List.of("b@b.com"), category, List.of(), false, false, "");
+    private MailContext contextWith(String category, String recipientType) {
+        return new MailContext("a@a.com", List.of("b@b.com"), recipientType, category, List.of(), false, false, "");
     }
 
     @Test
-    void recipientType가_지정된_룰은_매칭에서_제외되고_와일드카드_룰이_적용된다() {
+    void recipientType_해석이_안된_외부발송은_와일드카드_룰로_REVIEW된다() {
         Policy policy = new Policy(1, List.of(
+                new Rule("payslip", "internal", ScanStatus.ALLOW),
                 new Rule("payslip", "designated-agency", ScanStatus.ALLOW),
                 new Rule("payslip", "approved-partner", ScanStatus.REVIEW),
                 new Rule("payslip", null, ScanStatus.REVIEW),
@@ -44,10 +45,39 @@ class DecisionEngineImplTest {
         ));
         when(generator.generate(anyString())).thenReturn("사유 문장");
 
-        Verdict verdict = decisionEngine.decide(contextWithCategory("payslip"), policy);
+        Verdict verdict = decisionEngine.decide(contextWith("payslip", null), policy);
 
         assertThat(verdict.status()).isEqualTo(ScanStatus.REVIEW);
         assertThat(verdict.reason()).isEqualTo("사유 문장");
+    }
+
+    @Test
+    void 내부발송이면_internal_룰이_매칭된다() {
+        Policy policy = new Policy(1, List.of(
+                new Rule("payslip", "internal", ScanStatus.ALLOW),
+                new Rule("payslip", null, ScanStatus.REVIEW),
+                new Rule(null, null, ScanStatus.ALLOW)
+        ));
+        when(generator.generate(anyString())).thenReturn("사유 문장");
+
+        Verdict verdict = decisionEngine.decide(contextWith("payslip", "internal"), policy);
+
+        assertThat(verdict.status()).isEqualTo(ScanStatus.ALLOW);
+    }
+
+    @Test
+    void 승인파트너처럼_아직_해석못하는_유형의_룰은_매칭되지_않는다() {
+        Policy policy = new Policy(1, List.of(
+                new Rule("payslip", "approved-partner", ScanStatus.ALLOW),
+                new Rule("payslip", null, ScanStatus.REVIEW)
+        ));
+        when(generator.generate(anyString())).thenReturn("사유 문장");
+
+        // context.recipientType()이 null(미해석)이라 "approved-partner" 룰과는 매칭 안 되고
+        // 와일드카드(payslip, null) 룰로 떨어져야 한다.
+        Verdict verdict = decisionEngine.decide(contextWith("payslip", null), policy);
+
+        assertThat(verdict.status()).isEqualTo(ScanStatus.REVIEW);
     }
 
     @Test
@@ -58,7 +88,7 @@ class DecisionEngineImplTest {
         ));
         when(generator.generate(anyString())).thenReturn("사유 문장");
 
-        Verdict verdict = decisionEngine.decide(contextWithCategory("contract"), policy);
+        Verdict verdict = decisionEngine.decide(contextWith("contract", null), policy);
 
         assertThat(verdict.status()).isEqualTo(ScanStatus.ALLOW);
     }
@@ -70,7 +100,7 @@ class DecisionEngineImplTest {
         ));
         when(generator.generate(anyString())).thenReturn("사유 문장");
 
-        Verdict verdict = decisionEngine.decide(contextWithCategory("contract"), policy);
+        Verdict verdict = decisionEngine.decide(contextWith("contract", null), policy);
 
         assertThat(verdict.status()).isEqualTo(ScanStatus.REVIEW);
     }

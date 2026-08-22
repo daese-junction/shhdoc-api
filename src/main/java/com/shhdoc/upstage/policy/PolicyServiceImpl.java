@@ -15,6 +15,7 @@ public class PolicyServiceImpl implements PolicyService {
     private static final Policy MOCK_POLICY = new Policy(
             null,
             List.of(
+                    new Rule("payslip", "internal", ScanStatus.ALLOW),
                     new Rule("payslip", "designated-agency", ScanStatus.ALLOW),
                     new Rule("payslip", "approved-partner", ScanStatus.REVIEW),
                     new Rule("payslip", null, ScanStatus.REVIEW),
