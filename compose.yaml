@@ -6,6 +6,9 @@ services:
       - 'MYSQL_USER=shhdoc'
       - 'MYSQL_PASSWORD=shhdoc'
       - 'MYSQL_ROOT_PASSWORD=root'
+    # 볼륨이 없으면 데이터가 컨테이너 안에만 남아 재생성 한 번에 DB 가 통째로 사라진다.
+    volumes:
+      - 'mysql-data:/var/lib/mysql'
     ports:
       - '3306:3306'
     healthcheck:
@@ -70,3 +73,4 @@ services:
 
 volumes:
   minio-data:
+  mysql-data:
