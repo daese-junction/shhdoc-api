@@ -25,14 +25,20 @@ public class ContextBuilderImpl implements ContextBuilder {
     private final RecipientDomainRepository recipientDomainRepository;
 
     @Override
-    public MailContext build(MailRequest mail, DocumentAnalysisResult docResult) {
+    public String resolveRecipientType(MailRequest mail) {
+        List<String> recipientAddresses = mail.recipients().stream().map(Recipient::address).toList();
+        return resolveRecipientType(mail.companyId(), recipientAddresses);
+    }
+
+    @Override
+    public MailContext build(MailRequest mail, DocumentAnalysisResult docResult, String recipientType) {
         ExtractionResult extraction = docResult.extraction();
         List<String> recipientAddresses = mail.recipients().stream().map(Recipient::address).toList();
 
         return new MailContext(
                 mail.senderAddress(),
                 recipientAddresses,
-                resolveRecipientType(mail.companyId(), recipientAddresses),
+                recipientType,
                 docResult.classification().category(),
                 extraction.matchedSensitiveTypeCodes(),
                 extraction.classification(),

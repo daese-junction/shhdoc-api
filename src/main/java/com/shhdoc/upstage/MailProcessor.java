@@ -4,6 +4,7 @@ import com.shhdoc.upstage.context.ContextBuilder;
 import com.shhdoc.upstage.context.MailContext;
 import com.shhdoc.upstage.decision.DecisionEngine;
 import com.shhdoc.upstage.decision.Verdict;
+import com.shhdoc.upstage.document.CompanyVocabulary;
 import com.shhdoc.upstage.document.DocumentAnalysisResult;
 import com.shhdoc.upstage.document.DocumentAnalyzer;
 import com.shhdoc.upstage.dto.Attachment;
@@ -58,9 +59,13 @@ public class MailProcessor {
         MailRequest request = mail.request();
         List<AttachmentResult> attachmentResults;
         try {
+            // 회사 정책/어휘/수신자유형은 메일 하나의 모든 첨부가 공유하는 값이라
+            // 첨부마다 반복 조회하지 않도록 메일당 한 번만 구해서 재사용한다.
             Policy policy = policyService.findByCompany(mail.companyId());
+            CompanyVocabulary vocabulary = documentAnalyzer.loadVocabulary(mail.companyId());
+            String recipientType = contextBuilder.resolveRecipientType(request);
             attachmentResults = request.attachments().stream()
-                    .map(attachment -> decide(request, policy, attachment))
+                    .map(attachment -> decide(request, policy, vocabulary, recipientType, attachment))
                     .toList();
         } catch (RuntimeException e) {
             log.error("mail {} 처리에 실패해 전체를 보류로 넘긴다", mail.mailId(), e);
@@ -80,19 +85,21 @@ public class MailProcessor {
                 "자동 검사를 완료하지 못했습니다. 관리자 확인이 필요합니다.");
     }
 
-    private AttachmentResult decide(MailRequest request, Policy policy, Attachment attachment) {
+    private AttachmentResult decide(MailRequest request, Policy policy, CompanyVocabulary vocabulary,
+                                     String recipientType, Attachment attachment) {
         try {
-            return analyze(request, policy, attachment);
+            return analyze(request, policy, vocabulary, recipientType, attachment);
         } catch (RuntimeException e) {
             log.error("첨부 {} 분석에 실패해 보류로 넘긴다", attachment.storageKey(), e);
             return unchecked(attachment);
         }
     }
 
-    private AttachmentResult analyze(MailRequest request, Policy policy, Attachment attachment) {
+    private AttachmentResult analyze(MailRequest request, Policy policy, CompanyVocabulary vocabulary,
+                                      String recipientType, Attachment attachment) {
         DocumentFile file = attachmentLoader.load(attachment);
-        DocumentAnalysisResult docResult = documentAnalyzer.analyze(file, request.companyId());
-        MailContext context = contextBuilder.build(request, docResult);
+        DocumentAnalysisResult docResult = documentAnalyzer.analyze(file, vocabulary);
+        MailContext context = contextBuilder.build(request, docResult, recipientType);
         Verdict verdict = decisionEngine.decide(context, policy);
         return new AttachmentResult(attachment.storageKey(), verdict.status(), verdict.reason());
     }

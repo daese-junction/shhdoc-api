@@ -61,11 +61,12 @@ class ContextBuilderImplTest {
     }
 
     @Test
-    void mail과_분석결과를_MailContext로_조립한다() {
-        MailContext context = contextBuilder.build(mailTo("r1@b.com", "r2@b.com"), docResult());
+    void mail과_분석결과와_미리구한_recipientType을_MailContext로_조립한다() {
+        MailContext context = contextBuilder.build(mailTo("r1@b.com", "r2@b.com"), docResult(), "external");
 
         assertThat(context.senderAddress()).isEqualTo("sender@company.com");
         assertThat(context.recipientAddresses()).containsExactly("r1@b.com", "r2@b.com");
+        assertThat(context.recipientType()).isEqualTo("external");
         assertThat(context.category()).isEqualTo("payslip");
         assertThat(context.sensitiveTypeCodes()).containsExactly("PERSONAL");
         assertThat(context.classification()).isEqualTo("CONFIDENTIAL");
@@ -73,10 +74,18 @@ class ContextBuilderImplTest {
     }
 
     @Test
-    void 수신자_도메인이_회사도메인과_같으면_internal이다() {
-        MailContext context = contextBuilder.build(mailTo("colleague@company.com"), docResult());
+    void build은_recipientType을_다시_조회하지_않고_인자로_받은_값을_그대로_쓴다() {
+        MailContext context = contextBuilder.build(mailTo("colleague@company.com"), docResult(), "internal");
 
         assertThat(context.recipientType()).isEqualTo("internal");
+        Mockito.verifyNoInteractions(companyRepository, recipientDomainRepository);
+    }
+
+    @Test
+    void 수신자_도메인이_회사도메인과_같으면_internal이다() {
+        String recipientType = contextBuilder.resolveRecipientType(mailTo("colleague@company.com"));
+
+        assertThat(recipientType).isEqualTo("internal");
     }
 
     @Test
@@ -86,9 +95,9 @@ class ContextBuilderImplTest {
         when(partnerDomain.getScope()).thenReturn(RecipientScope.PARTNER);
         when(recipientDomainRepository.findByCompanyIdOrderByIdAsc(COMPANY_ID)).thenReturn(List.of(partnerDomain));
 
-        MailContext context = contextBuilder.build(mailTo("r@partner.com"), docResult());
+        String recipientType = contextBuilder.resolveRecipientType(mailTo("r@partner.com"));
 
-        assertThat(context.recipientType()).isEqualTo("partner");
+        assertThat(recipientType).isEqualTo("partner");
     }
 
     @Test
@@ -98,22 +107,22 @@ class ContextBuilderImplTest {
         when(personalDomain.getScope()).thenReturn(RecipientScope.PERSONAL_EMAIL);
         when(recipientDomainRepository.findByCompanyIdOrderByIdAsc(COMPANY_ID)).thenReturn(List.of(personalDomain));
 
-        MailContext context = contextBuilder.build(mailTo("r@gmail.com"), docResult());
+        String recipientType = contextBuilder.resolveRecipientType(mailTo("r@gmail.com"));
 
-        assertThat(context.recipientType()).isEqualTo("personal_email");
+        assertThat(recipientType).isEqualTo("personal_email");
     }
 
     @Test
     void 등록안된_도메인이면_external이다() {
-        MailContext context = contextBuilder.build(mailTo("r@unknown.com"), docResult());
+        String recipientType = contextBuilder.resolveRecipientType(mailTo("r@unknown.com"));
 
-        assertThat(context.recipientType()).isEqualTo("external");
+        assertThat(recipientType).isEqualTo("external");
     }
 
     @Test
     void 수신자가_여러명이면_가장_위험한_유형으로_대표한다() {
-        MailContext context = contextBuilder.build(mailTo("colleague@company.com", "r@unknown.com"), docResult());
+        String recipientType = contextBuilder.resolveRecipientType(mailTo("colleague@company.com", "r@unknown.com"));
 
-        assertThat(context.recipientType()).isEqualTo("external");
+        assertThat(recipientType).isEqualTo("external");
     }
 }

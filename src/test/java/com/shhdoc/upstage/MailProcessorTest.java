@@ -4,8 +4,11 @@ import com.shhdoc.upstage.context.ContextBuilder;
 import com.shhdoc.upstage.context.MailContext;
 import com.shhdoc.upstage.decision.DecisionEngine;
 import com.shhdoc.upstage.decision.Verdict;
+import com.shhdoc.upstage.document.CompanyVocabulary;
 import com.shhdoc.upstage.document.DocumentAnalysisResult;
 import com.shhdoc.upstage.document.DocumentAnalyzer;
+import com.shhdoc.upstage.pipeline.classify.DefaultDocumentCategories;
+import com.shhdoc.upstage.pipeline.extract.DefaultSensitiveInfoTypes;
 import com.shhdoc.upstage.dto.Attachment;
 import com.shhdoc.upstage.dto.DecisionResponse;
 import com.shhdoc.upstage.dto.MailRequest;
@@ -79,10 +82,13 @@ class MailProcessorTest {
         MailContext context = new MailContext("a@a.com", List.of(), null, "payslip", List.of(), "CONFIDENTIAL", "");
         Policy policy = new Policy(100L, List.of());
         Verdict verdict = new Verdict(ScanStatus.REVIEW, "사유");
+        CompanyVocabulary vocabulary = new CompanyVocabulary(DefaultDocumentCategories.ALL, DefaultSensitiveInfoTypes.ALL);
 
         when(attachmentLoader.load(any())).thenReturn(file);
-        when(documentAnalyzer.analyze(file, 100L)).thenReturn(docResult);
-        when(contextBuilder.build(any(), any())).thenReturn(context);
+        when(documentAnalyzer.loadVocabulary(100L)).thenReturn(vocabulary);
+        when(documentAnalyzer.analyze(file, vocabulary)).thenReturn(docResult);
+        when(contextBuilder.resolveRecipientType(any())).thenReturn(null);
+        when(contextBuilder.build(any(), any(), any())).thenReturn(context);
         when(policyService.findByCompany(100L)).thenReturn(policy);
         when(decisionEngine.decide(context, policy)).thenReturn(verdict);
 
@@ -127,6 +133,23 @@ class MailProcessorTest {
                 List.of(new com.shhdoc.upstage.dto.AttachmentResult("storage-key-1", ScanStatus.REVIEW,
                         "자동 검사를 완료하지 못했습니다. 관리자 확인이 필요합니다."))));
         verifyNoInteractions(documentAnalyzer, contextBuilder, decisionEngine);
+    }
+
+    /** 메일당 한 번만 미리 구해두는 회사어휘 조회가 실패하는 경우도 마찬가지다. */
+    @Test
+    void 회사어휘_사전조회가_실패해도_보류_판정으로_결과를_발행한다() {
+        Mail mail = mailStore.save(requestWithOneAttachment());
+
+        when(policyService.findByCompany(100L)).thenReturn(new Policy(100L, List.of()));
+        when(documentAnalyzer.loadVocabulary(100L)).thenThrow(new RuntimeException("어휘 조회 실패"));
+
+        mailProcessor.handle(new MailReceivedEvent(mail.requestId()));
+
+        assertThat(mail.status()).isEqualTo(QueueStatus.DONE);
+        verify(gateway).publishDecision(new DecisionResponse(1L,
+                List.of(new com.shhdoc.upstage.dto.AttachmentResult("storage-key-1", ScanStatus.REVIEW,
+                        "자동 검사를 완료하지 못했습니다. 관리자 확인이 필요합니다."))));
+        verifyNoInteractions(contextBuilder, decisionEngine, attachmentLoader);
     }
 
     @Test

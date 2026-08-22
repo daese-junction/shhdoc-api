@@ -33,16 +33,18 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
     private final SensitiveInfoTypeRepository sensitiveInfoTypeRepository;
 
     @Override
-    public DocumentAnalysisResult analyze(DocumentFile file, Long companyId) {
-        List<DocumentCategory> categories = categoriesFor(companyId);
-        List<SensitiveInfoCategory> sensitiveTypes = sensitiveTypesFor(companyId);
+    public CompanyVocabulary loadVocabulary(Long companyId) {
+        return new CompanyVocabulary(categoriesFor(companyId), sensitiveTypesFor(companyId));
+    }
 
+    @Override
+    public DocumentAnalysisResult analyze(DocumentFile file, CompanyVocabulary vocabulary) {
         CompletableFuture<ParsedDocument> parseFuture =
                 CompletableFuture.supplyAsync(() -> documentParser.parse(file));
         CompletableFuture<ClassificationResult> classifyFuture =
-                CompletableFuture.supplyAsync(() -> documentClassifier.classify(file, categories));
+                CompletableFuture.supplyAsync(() -> documentClassifier.classify(file, vocabulary.categories()));
         CompletableFuture<ExtractionResult> extractFuture =
-                CompletableFuture.supplyAsync(() -> informationExtractor.extract(file, sensitiveTypes));
+                CompletableFuture.supplyAsync(() -> informationExtractor.extract(file, vocabulary.sensitiveTypes()));
 
         CompletableFuture.allOf(parseFuture, classifyFuture, extractFuture).join();
 
