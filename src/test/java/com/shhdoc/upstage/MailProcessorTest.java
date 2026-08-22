@@ -93,6 +93,43 @@ class MailProcessorTest {
                 List.of(new com.shhdoc.upstage.dto.AttachmentResult("storage-key-1", ScanStatus.REVIEW, "사유"))));
     }
 
+    /**
+     * 분석이 터져도 결과는 반드시 나가야 한다. 여기서 빠져나가면 첨부가 PENDING 에 영구히
+     * 남아 화면은 "검사 중"을 무한히 돌고 발송은 계속 막힌다.
+     */
+    @Test
+    void 분석이_실패해도_보류_판정으로_결과를_발행한다() {
+        Mail mail = new Mail(requestWithOneAttachment());
+        mailStore.save(mail);
+
+        when(policyService.findByCompany(100)).thenReturn(new Policy(100, List.of()));
+        when(attachmentLoader.load(any())).thenThrow(new RuntimeException("스토리지 접근 실패"));
+
+        mailProcessor.handle(new MailReceivedEvent(1));
+
+        assertThat(mail.status()).isEqualTo(QueueStatus.DONE);
+        verify(gateway).publishDecision(new DecisionResponse(1,
+                List.of(new com.shhdoc.upstage.dto.AttachmentResult("storage-key-1", ScanStatus.REVIEW,
+                        "자동 검사를 완료하지 못했습니다. 관리자 확인이 필요합니다."))));
+    }
+
+    /** 정책 조회처럼 첨부 루프 밖에서 터지는 경우도 마찬가지다. */
+    @Test
+    void 정책_조회가_실패해도_보류_판정으로_결과를_발행한다() {
+        Mail mail = new Mail(requestWithOneAttachment());
+        mailStore.save(mail);
+
+        when(policyService.findByCompany(100)).thenThrow(new RuntimeException("정책 없음"));
+
+        mailProcessor.handle(new MailReceivedEvent(1));
+
+        assertThat(mail.status()).isEqualTo(QueueStatus.DONE);
+        verify(gateway).publishDecision(new DecisionResponse(1,
+                List.of(new com.shhdoc.upstage.dto.AttachmentResult("storage-key-1", ScanStatus.REVIEW,
+                        "자동 검사를 완료하지 못했습니다. 관리자 확인이 필요합니다."))));
+        verifyNoInteractions(documentAnalyzer, contextBuilder, decisionEngine);
+    }
+
     @Test
     void 이미_처리중인_메일이면_아무것도_안하고_스킵한다() {
         Mail mail = new Mail(requestWithOneAttachment());
