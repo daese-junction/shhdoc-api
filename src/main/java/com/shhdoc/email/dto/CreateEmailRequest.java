@@ -8,7 +8,7 @@ import java.util.List;
 public record CreateEmailRequest(
         @Schema(example = "3분기 실적 공유") String subject,
         @Schema(example = "첨부 확인 부탁드립니다.") String body,
-        @Valid List<RecipientDto> recipients) {
+        List<@Valid RecipientDto> recipients) {
 
     public List<RecipientDto> recipientsOrEmpty() {
         return recipients == null ? List.of() : recipients;

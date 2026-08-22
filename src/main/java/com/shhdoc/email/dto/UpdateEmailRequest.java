@@ -7,7 +7,7 @@ import java.util.List;
 public record UpdateEmailRequest(
         String subject,
         String body,
-        @Valid List<RecipientDto> recipients) {
+        List<@Valid RecipientDto> recipients) {
 
     public List<RecipientDto> recipientsOrEmpty() {
         return recipients == null ? List.of() : recipients;
