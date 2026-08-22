@@ -1,6 +1,7 @@
 package com.shhdoc.company;
 
 import com.shhdoc.common.ApiException;
+import com.shhdoc.common.EmailAddresses;
 import com.shhdoc.company.dto.AddMemberRequest;
 import com.shhdoc.company.dto.CompanyResponse;
 import com.shhdoc.company.dto.CreateCompanyRequest;
@@ -47,8 +48,8 @@ public class CompanyService {
 
     /** 계정 생성은 대표자든 직원이든 전부 여기를 지난다. 도메인 검증이 갈라지지 않도록. */
     private User createUser(Company company, String email, String rawPassword, String name, Role role) {
-        String normalizedEmail = User.normalizeEmail(email);
-        if (!domainOf(normalizedEmail).equals(company.getEmailDomain())) {
+        String normalizedEmail = EmailAddresses.normalize(email);
+        if (!EmailAddresses.domainOf(normalizedEmail).equals(company.getEmailDomain())) {
             throw new ApiException(HttpStatus.BAD_REQUEST,
                     "회사 도메인(@" + company.getEmailDomain() + ") 이메일만 등록할 수 있습니다.");
         }
@@ -57,11 +58,6 @@ public class CompanyService {
         }
         return userRepository.save(
                 new User(company, normalizedEmail, passwordEncoder.encode(rawPassword), name, role));
-    }
-
-    private static String domainOf(String email) {
-        int at = email.lastIndexOf('@');
-        return at < 0 ? "" : email.substring(at + 1);
     }
 
     /** "@Shhdoc.com " 처럼 들어와도 "shhdoc.com" 하나로 모은다. */
