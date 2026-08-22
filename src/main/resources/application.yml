@@ -20,6 +20,12 @@ cors:
   allowed-origins: >-
     ${CORS_ALLOWED_ORIGINS:https://mail.shhdoc.daeonlab.com,http://localhost:3000,http://localhost:5173}
 
+logging:
+  pattern:
+    # TraceIdFilter가 MDC에 심는 traceId를 로그 레벨 옆에 붙인다. 요청이 없는 컨텍스트
+    # (upstage 비동기 파이프라인 등)는 traceId가 없으니 "-"로 찍힌다.
+    level: "%5p [%X{traceId:-}]"
+
 spring:
   application:
     name: shhdoc-api
