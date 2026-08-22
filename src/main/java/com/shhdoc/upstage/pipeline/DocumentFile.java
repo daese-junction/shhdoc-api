@@ -1,4 +1,4 @@
-package com.shhdoc.upstage.pipeline.parse;
+package com.shhdoc.upstage.pipeline;
 
 /**
  * pipeline 모듈에 전달되는 실제 파일 바이트.
