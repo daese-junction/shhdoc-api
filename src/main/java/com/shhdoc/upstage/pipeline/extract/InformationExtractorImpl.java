@@ -1,7 +1,6 @@
 package com.shhdoc.upstage.pipeline.extract;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shhdoc.upstage.pipeline.DocumentFile;
 import org.springframework.beans.factory.annotation.Value;
@@ -10,12 +9,16 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
 import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Semaphore;
+import java.util.stream.Collectors;
 
 /**
- * Upstage Information Extract API 실제 연동. 문서유형과 무관한 고정 범용 민감정보 스키마를 쓴다.
+ * Upstage Information Extract API 실제 연동. 회사가 등록한 민감정보 유형 후보를
+ * 요청마다 실어 보내고, 그 중 실제로 검출된 코드 + 보안등급을 받는다
+ * ({@code classify.DocumentClassifierImpl}과 같은 회사어휘 패턴).
  *
  * <p>동기 Information Extract도 Document Parse와 동일하게 RPS 한도가 1이라
  * {@code extractSemaphore}로 동시 호출 1개로 제한한다. 세마포어는 "동시에 1개만"만
@@ -25,31 +28,10 @@ import java.util.concurrent.Semaphore;
 @Component
 public class InformationExtractorImpl implements InformationExtractor {
 
+    private static final List<String> CLASSIFICATION_LEVELS = List.of("PUBLIC", "INTERNAL", "CONFIDENTIAL", "SECRET");
+
     private final Semaphore extractSemaphore = new Semaphore(1);
-
-    private static final String SCHEMA_JSON = """
-            {
-              "type": "object",
-              "properties": {
-                "sensitive_items": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "type": {"type": "string", "description": "민감정보 유형 (이름/계좌번호/주민번호/전화번호/이메일/금액 등)"},
-                      "value": {"type": "string", "description": "감지된 값"}
-                    }
-                  }
-                },
-                "contains_personal_info": {"type": "boolean", "description": "개인정보 포함 여부"},
-                "contains_financial_info": {"type": "boolean", "description": "금액/재무정보 포함 여부"},
-                "confidentiality_marking": {"type": "string", "description": "대외비/기밀 표시 문구, 없으면 빈 문자열"}
-              }
-            }
-            """;
-
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private final Map<String, Object> schema;
     private final RestClient restClient;
     private final String apiKey;
     private final String endpoint;
@@ -59,16 +41,10 @@ public class InformationExtractorImpl implements InformationExtractor {
         this.restClient = RestClient.builder().build();
         this.apiKey = apiKey;
         this.endpoint = endpoint;
-        try {
-            this.schema = objectMapper.readValue(SCHEMA_JSON, new TypeReference<Map<String, Object>>() {
-            });
-        } catch (Exception e) {
-            throw new IllegalStateException("failed to parse fixed extraction schema", e);
-        }
     }
 
     @Override
-    public ExtractionResult extract(DocumentFile file) {
+    public ExtractionResult extract(DocumentFile file, List<SensitiveInfoCategory> sensitiveTypes) {
         String base64Data = Base64.getEncoder().encodeToString(file.content());
         String dataUri = "data:application/octet-stream;base64," + base64Data;
 
@@ -77,7 +53,7 @@ public class InformationExtractorImpl implements InformationExtractor {
                 List.of(new ExtractRequest.Message("user",
                         List.of(new ExtractRequest.Content("image_url", new ExtractRequest.ImageUrl(dataUri))))),
                 new ExtractRequest.ResponseFormat("json_schema",
-                        new ExtractRequest.JsonSchema("shhdoc_sensitive_info", schema))
+                        new ExtractRequest.JsonSchema("shhdoc_sensitive_info", buildSchema(sensitiveTypes)))
         );
 
         ExtractResponse response;
@@ -96,19 +72,47 @@ public class InformationExtractorImpl implements InformationExtractor {
         return toExtractionResult(response);
     }
 
+    private Map<String, Object> buildSchema(List<SensitiveInfoCategory> sensitiveTypes) {
+        List<String> codes = sensitiveTypes.stream().map(SensitiveInfoCategory::code).toList();
+        String codeDescriptions = sensitiveTypes.stream()
+                .map(t -> t.code() + "(" + t.description() + ")")
+                .collect(Collectors.joining(", "));
+
+        Map<String, Object> matchedSensitiveTypesProp = Map.of(
+                "type", "array",
+                "description", "문서에서 실제로 검출된 민감정보 유형 코드 목록. 후보: " + codeDescriptions,
+                "items", Map.of("type", "string", "enum", codes)
+        );
+        Map<String, Object> classificationProp = Map.of(
+                "type", "string",
+                "enum", CLASSIFICATION_LEVELS,
+                "description", "문서의 보안등급. PUBLIC(공개 가능) < INTERNAL(사내용) < CONFIDENTIAL(대외비) "
+                        + "< SECRET(극비) 순으로 위험도가 높아짐. 명시적 표시나 내용상 민감도로 판단"
+        );
+        Map<String, Object> markingProp = Map.of(
+                "type", "string",
+                "description", "문서에 실제로 적힌 대외비/기밀 표시 문구. 없으면 빈 문자열"
+        );
+
+        Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("matched_sensitive_types", matchedSensitiveTypesProp);
+        properties.put("classification", classificationProp);
+        properties.put("confidentiality_marking", markingProp);
+
+        Map<String, Object> schema = new LinkedHashMap<>();
+        schema.put("type", "object");
+        schema.put("properties", properties);
+        return schema;
+    }
+
     private ExtractionResult toExtractionResult(ExtractResponse response) {
         String contentJson = response.choices().get(0).message().content();
         try {
             ExtractedData data = objectMapper.readValue(contentJson, ExtractedData.class);
-            List<SensitiveItem> items = data.sensitiveItems() == null
-                    ? List.of()
-                    : data.sensitiveItems().stream()
-                            .map(i -> new SensitiveItem(i.type(), i.value()))
-                            .toList();
+            List<String> matched = data.matchedSensitiveTypes() == null ? List.of() : data.matchedSensitiveTypes();
             return new ExtractionResult(
-                    items,
-                    Boolean.TRUE.equals(data.containsPersonalInfo()),
-                    Boolean.TRUE.equals(data.containsFinancialInfo()),
+                    matched,
+                    data.classification(),
                     data.confidentialityMarking() == null ? "" : data.confidentialityMarking()
             );
         } catch (Exception e) {
@@ -147,14 +151,11 @@ public class InformationExtractorImpl implements InformationExtractor {
         }
     }
 
-    /** message.content(JSON 문자열)를 파싱해 담는, 우리 고정 스키마 그대로의 내부 전용 타입. */
+    /** message.content(JSON 문자열)를 파싱해 담는, 요청 스키마 그대로의 내부 전용 타입. */
     private record ExtractedData(
-            @JsonProperty("sensitive_items") List<ExtractedSensitiveItem> sensitiveItems,
-            @JsonProperty("contains_personal_info") Boolean containsPersonalInfo,
-            @JsonProperty("contains_financial_info") Boolean containsFinancialInfo,
+            @JsonProperty("matched_sensitive_types") List<String> matchedSensitiveTypes,
+            String classification,
             @JsonProperty("confidentiality_marking") String confidentialityMarking
     ) {
-        private record ExtractedSensitiveItem(String type, String value) {
-        }
     }
 }

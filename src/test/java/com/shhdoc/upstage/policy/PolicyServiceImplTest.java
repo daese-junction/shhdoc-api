@@ -1,10 +1,12 @@
 package com.shhdoc.upstage.policy;
 
+import com.shhdoc.policy.entity.Classification;
 import com.shhdoc.policy.entity.DocumentType;
 import com.shhdoc.policy.entity.PolicyAction;
 import com.shhdoc.policy.entity.PolicyRule;
 import com.shhdoc.policy.entity.RecipientScope;
 import com.shhdoc.policy.entity.SendDirection;
+import com.shhdoc.policy.entity.SensitiveInfoType;
 import com.shhdoc.policy.repository.PolicyRuleRepository;
 import com.shhdoc.upstage.dto.ScanStatus;
 import org.junit.jupiter.api.BeforeEach;
@@ -84,13 +86,15 @@ class PolicyServiceImplTest {
     }
 
     @Test
-    void OUTBOUND_scope없으면_external로_변환된다() {
+    void OUTBOUND_scope없으면_외부3종_룰로_펼쳐진다() {
         PolicyRule rule = ruleMock(true, null, SendDirection.OUTBOUND, null, PolicyAction.REVIEW);
         when(ruleRepository.findByCompanyIdOrderByIdAsc(1L)).thenReturn(List.of(rule));
 
-        Rule converted = policyService.findByCompany(1L).rules().get(0);
+        List<Rule> converted = policyService.findByCompany(1L).rules();
 
-        assertThat(converted.recipientType()).isEqualTo("external");
+        assertThat(converted).extracting(Rule::recipientType)
+                .containsExactlyInAnyOrder("partner", "personal_email", "external");
+        assertThat(converted).allMatch(r -> r.decision() == ScanStatus.REVIEW);
     }
 
     @Test
@@ -135,5 +139,40 @@ class PolicyServiceImplTest {
 
         assertThat(converted).extracting(Rule::decision)
                 .containsExactly(ScanStatus.REVIEW, ScanStatus.REVIEW);
+    }
+
+    @Test
+    void sensitiveType이_있으면_그_code가_담긴다() {
+        SensitiveInfoType sensitiveType = org.mockito.Mockito.mock(SensitiveInfoType.class);
+        when(sensitiveType.getCode()).thenReturn("CREDENTIAL");
+        PolicyRule rule = ruleMock(true, null, SendDirection.ALL, null, PolicyAction.ALLOW);
+        lenient().when(rule.getSensitiveType()).thenReturn(sensitiveType);
+        when(ruleRepository.findByCompanyIdOrderByIdAsc(1L)).thenReturn(List.of(rule));
+
+        Rule converted = policyService.findByCompany(1L).rules().get(0);
+
+        assertThat(converted.sensitiveType()).isEqualTo("CREDENTIAL");
+    }
+
+    @Test
+    void classification이_있으면_이름이_담긴다() {
+        PolicyRule rule = ruleMock(true, null, SendDirection.ALL, null, PolicyAction.ALLOW);
+        lenient().when(rule.getClassification()).thenReturn(Classification.SECRET);
+        when(ruleRepository.findByCompanyIdOrderByIdAsc(1L)).thenReturn(List.of(rule));
+
+        Rule converted = policyService.findByCompany(1L).rules().get(0);
+
+        assertThat(converted.classification()).isEqualTo("SECRET");
+    }
+
+    @Test
+    void sensitiveType과_classification이_없으면_null이다() {
+        PolicyRule rule = ruleMock(true, null, SendDirection.ALL, null, PolicyAction.ALLOW);
+        when(ruleRepository.findByCompanyIdOrderByIdAsc(1L)).thenReturn(List.of(rule));
+
+        Rule converted = policyService.findByCompany(1L).rules().get(0);
+
+        assertThat(converted.sensitiveType()).isNull();
+        assertThat(converted.classification()).isNull();
     }
 }

@@ -1,85 +1,118 @@
 package com.shhdoc.upstage.context;
 
+import com.shhdoc.company.Company;
+import com.shhdoc.company.CompanyRepository;
+import com.shhdoc.policy.entity.RecipientDomain;
+import com.shhdoc.policy.entity.RecipientScope;
+import com.shhdoc.policy.repository.RecipientDomainRepository;
 import com.shhdoc.upstage.document.DocumentAnalysisResult;
 import com.shhdoc.upstage.dto.MailRequest;
 import com.shhdoc.upstage.dto.Recipient;
 import com.shhdoc.upstage.pipeline.classify.ClassificationResult;
 import com.shhdoc.upstage.pipeline.extract.ExtractionResult;
-import com.shhdoc.upstage.pipeline.extract.SensitiveItem;
 import com.shhdoc.upstage.pipeline.parse.ParsedContent;
 import com.shhdoc.upstage.pipeline.parse.ParsedDocument;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.Mockito;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.when;
 
+@ExtendWith(MockitoExtension.class)
 class ContextBuilderImplTest {
 
-    private final ContextBuilderImpl contextBuilder = new ContextBuilderImpl();
+    private static final Long COMPANY_ID = 100L;
+
+    @Mock
+    private CompanyRepository companyRepository;
+    @Mock
+    private RecipientDomainRepository recipientDomainRepository;
+
+    private ContextBuilderImpl contextBuilder;
+
+    @BeforeEach
+    void setUp() {
+        contextBuilder = new ContextBuilderImpl(companyRepository, recipientDomainRepository);
+
+        Company company = Mockito.mock(Company.class);
+        lenient().when(company.getEmailDomain()).thenReturn("company.com");
+        lenient().when(companyRepository.findById(COMPANY_ID)).thenReturn(Optional.of(company));
+        lenient().when(recipientDomainRepository.findByCompanyIdOrderByIdAsc(COMPANY_ID)).thenReturn(List.of());
+    }
 
     private DocumentAnalysisResult docResult() {
-        List<SensitiveItem> sensitiveItems = List.of(new SensitiveItem("이름", "홍길동"));
-        ExtractionResult extraction = new ExtractionResult(sensitiveItems, true, false, "CONFIDENTIAL");
+        ExtractionResult extraction = new ExtractionResult(List.of("PERSONAL"), "CONFIDENTIAL", "대외비");
         ClassificationResult classification = new ClassificationResult("payslip", 0.9);
         ParsedDocument parsed = new ParsedDocument(new ParsedContent("<h1>x</h1>", "", ""), List.of(), 1);
         return new DocumentAnalysisResult(parsed, classification, extraction);
     }
 
+    private MailRequest mailTo(String... recipientAddresses) {
+        List<Recipient> recipients = List.of(recipientAddresses).stream().map(Recipient::new).toList();
+        return new MailRequest(1L, COMPANY_ID, "sender@company.com", 1L, "제목", "본문", recipients, List.of());
+    }
+
     @Test
     void mail과_분석결과를_MailContext로_조립한다() {
-        MailRequest mail = new MailRequest(
-                1L, 100L, "sender@a.com", 1L, "제목", "본문",
-                List.of(new Recipient("r1@b.com"), new Recipient("r2@b.com")),
-                List.of()
-        );
+        MailContext context = contextBuilder.build(mailTo("r1@b.com", "r2@b.com"), docResult());
 
-        MailContext context = contextBuilder.build(mail, docResult());
-
-        assertThat(context.senderAddress()).isEqualTo("sender@a.com");
+        assertThat(context.senderAddress()).isEqualTo("sender@company.com");
         assertThat(context.recipientAddresses()).containsExactly("r1@b.com", "r2@b.com");
         assertThat(context.category()).isEqualTo("payslip");
-        assertThat(context.sensitiveItems()).hasSize(1);
-        assertThat(context.containsPersonalInfo()).isTrue();
-        assertThat(context.containsFinancialInfo()).isFalse();
-        assertThat(context.confidentialityMarking()).isEqualTo("CONFIDENTIAL");
+        assertThat(context.sensitiveTypeCodes()).containsExactly("PERSONAL");
+        assertThat(context.classification()).isEqualTo("CONFIDENTIAL");
+        assertThat(context.confidentialityMarking()).isEqualTo("대외비");
     }
 
     @Test
-    void 발신자와_수신자_도메인이_다르면_external이다() {
-        MailRequest mail = new MailRequest(
-                1L, 100L, "sender@a.com", 1L, "제목", "본문",
-                List.of(new Recipient("r1@b.com")),
-                List.of()
-        );
-
-        MailContext context = contextBuilder.build(mail, docResult());
-
-        assertThat(context.recipientType()).isEqualTo("external");
-    }
-
-    @Test
-    void 발신자와_모든_수신자_도메인이_같으면_internal이다() {
-        MailRequest mail = new MailRequest(
-                1L, 100L, "sender@a.com", 1L, "제목", "본문",
-                List.of(new Recipient("r1@a.com"), new Recipient("r2@a.com")),
-                List.of()
-        );
-
-        MailContext context = contextBuilder.build(mail, docResult());
+    void 수신자_도메인이_회사도메인과_같으면_internal이다() {
+        MailContext context = contextBuilder.build(mailTo("colleague@company.com"), docResult());
 
         assertThat(context.recipientType()).isEqualTo("internal");
     }
 
     @Test
-    void 수신자_중_하나라도_다른_도메인이면_external이다() {
-        MailRequest mail = new MailRequest(
-                1L, 100L, "sender@a.com", 1L, "제목", "본문",
-                List.of(new Recipient("r1@a.com"), new Recipient("r2@b.com")),
-                List.of()
-        );
+    void 등록된_파트너_도메인이면_partner다() {
+        RecipientDomain partnerDomain = Mockito.mock(RecipientDomain.class);
+        when(partnerDomain.getDomain()).thenReturn("partner.com");
+        when(partnerDomain.getScope()).thenReturn(RecipientScope.PARTNER);
+        when(recipientDomainRepository.findByCompanyIdOrderByIdAsc(COMPANY_ID)).thenReturn(List.of(partnerDomain));
 
-        MailContext context = contextBuilder.build(mail, docResult());
+        MailContext context = contextBuilder.build(mailTo("r@partner.com"), docResult());
+
+        assertThat(context.recipientType()).isEqualTo("partner");
+    }
+
+    @Test
+    void 등록된_개인메일_도메인이면_personal_email이다() {
+        RecipientDomain personalDomain = Mockito.mock(RecipientDomain.class);
+        when(personalDomain.getDomain()).thenReturn("gmail.com");
+        when(personalDomain.getScope()).thenReturn(RecipientScope.PERSONAL_EMAIL);
+        when(recipientDomainRepository.findByCompanyIdOrderByIdAsc(COMPANY_ID)).thenReturn(List.of(personalDomain));
+
+        MailContext context = contextBuilder.build(mailTo("r@gmail.com"), docResult());
+
+        assertThat(context.recipientType()).isEqualTo("personal_email");
+    }
+
+    @Test
+    void 등록안된_도메인이면_external이다() {
+        MailContext context = contextBuilder.build(mailTo("r@unknown.com"), docResult());
+
+        assertThat(context.recipientType()).isEqualTo("external");
+    }
+
+    @Test
+    void 수신자가_여러명이면_가장_위험한_유형으로_대표한다() {
+        MailContext context = contextBuilder.build(mailTo("colleague@company.com", "r@unknown.com"), docResult());
 
         assertThat(context.recipientType()).isEqualTo("external");
     }

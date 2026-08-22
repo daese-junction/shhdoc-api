@@ -91,7 +91,7 @@ public class MailProcessor {
 
     private AttachmentResult analyze(MailRequest request, Policy policy, Attachment attachment) {
         DocumentFile file = attachmentLoader.load(attachment);
-        DocumentAnalysisResult docResult = documentAnalyzer.analyze(file);
+        DocumentAnalysisResult docResult = documentAnalyzer.analyze(file, request.companyId());
         MailContext context = contextBuilder.build(request, docResult);
         Verdict verdict = decisionEngine.decide(context, policy);
         return new AttachmentResult(attachment.storageKey(), verdict.status(), verdict.reason());

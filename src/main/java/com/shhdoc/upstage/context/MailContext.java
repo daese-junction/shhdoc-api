@@ -1,7 +1,5 @@
 package com.shhdoc.upstage.context;
 
-import com.shhdoc.upstage.pipeline.extract.SensitiveItem;
-
 import java.util.List;
 
 /**
@@ -10,13 +8,10 @@ import java.util.List;
  *
  * @param senderAddress          발신자 이메일 주소
  * @param recipientAddresses     수신자 이메일 주소 목록
- * @param recipientType          수신자 유형. 지금은 "internal"(발신자와 모든 수신자가 같은 도메인)만
- *                                해석 가능하고, 그 외(승인된 파트너 등)는 판단할 정책 데이터가 없어서
- *                                {@code null}(미해석)로 둔다
- * @param category               문서 카테고리 (분류 결과)
- * @param sensitiveItems         감지된 민감정보 목록
- * @param containsPersonalInfo   개인정보 포함 여부
- * @param containsFinancialInfo  금액/재무정보 포함 여부
+ * @param recipientType          수신자 유형 — "internal"/"partner"/"personal_email"/"external" 중 하나
+ * @param category               문서 카테고리 (분류 결과, 회사별 문서유형 코드)
+ * @param sensitiveTypeCodes     검출된 민감정보 유형 코드 목록 (회사별 등록 코드 기준)
+ * @param classification         문서 보안등급 — "PUBLIC"/"INTERNAL"/"CONFIDENTIAL"/"SECRET"
  * @param confidentialityMarking 문서 내 대외비/기밀 표시 문구
  */
 public record MailContext(
@@ -24,9 +19,8 @@ public record MailContext(
         List<String> recipientAddresses,
         String recipientType,
         String category,
-        List<SensitiveItem> sensitiveItems,
-        boolean containsPersonalInfo,
-        boolean containsFinancialInfo,
+        List<String> sensitiveTypeCodes,
+        String classification,
         String confidentialityMarking
 ) {
 }

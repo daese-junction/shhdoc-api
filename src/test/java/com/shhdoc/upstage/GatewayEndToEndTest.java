@@ -134,9 +134,9 @@ class GatewayEndToEndTest {
         @Primary
         PolicyService stubPolicyService() {
             List<Rule> rules = List.of(
-                    new Rule("payslip", "internal", ScanStatus.ALLOW),
-                    new Rule("payslip", null, ScanStatus.REVIEW),
-                    new Rule(null, null, ScanStatus.ALLOW)
+                    new Rule("payslip", "internal", null, null, ScanStatus.ALLOW),
+                    new Rule("payslip", null, null, null, ScanStatus.REVIEW),
+                    new Rule(null, null, null, null, ScanStatus.ALLOW)
             );
             return companyId -> new Policy(companyId, rules);
         }

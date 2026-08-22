@@ -75,13 +75,13 @@ class MailProcessorTest {
         DocumentAnalysisResult docResult = new DocumentAnalysisResult(
                 new ParsedDocument(new ParsedContent("", "", ""), List.of(), 1),
                 new ClassificationResult("payslip", 0.9),
-                new ExtractionResult(List.of(), true, false, ""));
-        MailContext context = new MailContext("a@a.com", List.of(), null, "payslip", List.of(), true, false, "");
+                new ExtractionResult(List.of(), "CONFIDENTIAL", ""));
+        MailContext context = new MailContext("a@a.com", List.of(), null, "payslip", List.of(), "CONFIDENTIAL", "");
         Policy policy = new Policy(100L, List.of());
         Verdict verdict = new Verdict(ScanStatus.REVIEW, "사유");
 
         when(attachmentLoader.load(any())).thenReturn(file);
-        when(documentAnalyzer.analyze(file)).thenReturn(docResult);
+        when(documentAnalyzer.analyze(file, 100L)).thenReturn(docResult);
         when(contextBuilder.build(any(), any())).thenReturn(context);
         when(policyService.findByCompany(100L)).thenReturn(policy);
         when(decisionEngine.decide(context, policy)).thenReturn(verdict);

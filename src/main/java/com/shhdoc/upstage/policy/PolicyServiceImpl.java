@@ -1,5 +1,6 @@
 package com.shhdoc.upstage.policy;
 
+import com.shhdoc.policy.entity.Classification;
 import com.shhdoc.policy.entity.PolicyAction;
 import com.shhdoc.policy.entity.PolicyRule;
 import com.shhdoc.policy.entity.RecipientScope;
@@ -13,24 +14,13 @@ import java.util.List;
 
 /**
  * 회사가 실제 등록한 정책({@code com.shhdoc.policy})을 조회해 upstage 판정 모델로 변환한다.
- *
- * <p><b>Stage A(지금)</b>: upstage 모델(category/recipientType 2개 조건)이 실제 스키마
- * (대분류/문서유형/민감정보유형/보안등급/발송방향+수신범위, 5개 조건)보다 단순해서 아래는
- * 아직 정확히 반영 못 한다.
- * <ul>
- *   <li>문서유형(category) 조건 — {@code DocumentType.code}(예: "PAYROLL")와
- *       Classification 결과값(예: "payslip")의 어휘가 달라서, documentType이 지정된
- *       룰은 실질적으로 매칭되지 않는다.</li>
- *   <li>recipientScope의 PARTNER/PERSONAL_EMAIL 조건 — {@code ContextBuilderImpl}이
- *       아직 회사별 등록 도메인을 조회하지 않아서 internal/external 둘로만 해석하므로,
- *       PARTNER/PERSONAL_EMAIL이 지정된 룰도 매칭되지 않는다.</li>
- * </ul>
- * Stage B에서 Classification을 회사별 문서유형 기준으로 바꾸고, recipientType 해석을
- * {@code RecipientDomain} 조회로 보강하면 해소된다.
+ * 조건 4개(문서유형/수신범위/민감정보유형/보안등급) 전부 실제 데이터로 매칭된다.
  */
 @Component
 @RequiredArgsConstructor
 public class PolicyServiceImpl implements PolicyService {
+
+    private static final List<String> OUTBOUND_ANY_SCOPES = List.of("partner", "personal_email", "external");
 
     private final PolicyRuleRepository ruleRepository;
 
@@ -38,28 +28,46 @@ public class PolicyServiceImpl implements PolicyService {
     public Policy findByCompany(Long companyId) {
         List<Rule> rules = ruleRepository.findByCompanyIdOrderByIdAsc(companyId).stream()
                 .filter(PolicyRule::isEnabled)
-                .map(PolicyServiceImpl::toRule)
+                .flatMap(rule -> toRules(rule).stream())
                 .toList();
         return new Policy(companyId, rules);
     }
 
-    private static Rule toRule(PolicyRule rule) {
+    /**
+     * {@code PolicyRule} 하나가 upstage {@code Rule} 여러 개로 펼쳐질 수 있다 —
+     * {@code direction=OUTBOUND}인데 {@code recipientScope}를 안 정한 룰은 "사외 전체"
+     * (PARTNER/PERSONAL_EMAIL/EXTERNAL 전부)를 뜻하는데, upstage {@code Rule}은 값
+     * 하나만 정확매칭하거나 null(무관)만 지원해서 "이 중 아무거나"를 한 줄로 못 담는다.
+     * 그래서 이 경우만 조건 동일한 룰 3개로 펼쳐서 매칭 시 OR처럼 동작하게 한다.
+     */
+    private static List<Rule> toRules(PolicyRule rule) {
         String category = rule.getDocumentType() == null ? null : rule.getDocumentType().getCode();
-        String recipientType = toRecipientType(rule.getDirection(), rule.getRecipientScope());
+        String sensitiveType = rule.getSensitiveType() == null ? null : rule.getSensitiveType().getCode();
+        String classification = toClassification(rule.getClassification());
         ScanStatus decision = toScanStatus(rule.getAction());
-        return new Rule(category, recipientType, decision);
+
+        if (rule.getDirection() == SendDirection.OUTBOUND && rule.getRecipientScope() == null) {
+            return OUTBOUND_ANY_SCOPES.stream()
+                    .map(recipientType -> new Rule(category, recipientType, sensitiveType, classification, decision))
+                    .toList();
+        }
+
+        String recipientType = toRecipientType(rule.getDirection(), rule.getRecipientScope());
+        return List.of(new Rule(category, recipientType, sensitiveType, classification, decision));
     }
 
-    /**
-     * ALL(방향 무관)→null, INTERNAL→"internal", OUTBOUND(+scope)→scope 이름(소문자)
-     * 또는 scope 미지정이면 "external".
-     */
+    /** ALL(방향 무관)→null, INTERNAL→"internal", OUTBOUND+scope→scope 이름(소문자). */
     private static String toRecipientType(SendDirection direction, RecipientScope scope) {
         return switch (direction) {
             case ALL -> null;
             case INTERNAL -> "internal";
-            case OUTBOUND -> scope == null ? "external" : scope.name().toLowerCase();
+            case OUTBOUND -> scope.name().toLowerCase();
         };
+    }
+
+    /** upstage 쪽 classification 표현은 Extract 응답과 동일하게 대문자 이름 문자열을 쓴다. */
+    private static String toClassification(Classification classification) {
+        return classification == null ? null : classification.name();
     }
 
     /** ScanStatus엔 BLOCK이 없어서, 안전한 쪽인 REVIEW로 흡수한다. */

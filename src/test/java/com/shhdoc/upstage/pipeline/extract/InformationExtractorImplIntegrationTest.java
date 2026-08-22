@@ -38,16 +38,13 @@ class InformationExtractorImplIntegrationTest {
         byte[] content = loadResource("sample-payslip." + extension);
         DocumentFile file = new DocumentFile("sample-payslip." + extension, content);
 
-        ExtractionResult result = informationExtractor.extract(file);
+        ExtractionResult result = informationExtractor.extract(file, DefaultSensitiveInfoTypes.ALL);
 
-        log.info("sensitiveItems={}, containsPersonalInfo={}, containsFinancialInfo={}, confidentialityMarking={}",
-                result.sensitiveItems(), result.containsPersonalInfo(), result.containsFinancialInfo(),
-                result.confidentialityMarking());
+        log.info("matchedSensitiveTypeCodes={}, classification={}, confidentialityMarking={}",
+                result.matchedSensitiveTypeCodes(), result.classification(), result.confidentialityMarking());
 
-        assertThat(result.sensitiveItems()).isNotEmpty();
-        assertThat(result.containsPersonalInfo()).isTrue();
-        assertThat(result.sensitiveItems())
-                .anyMatch(item -> item.value() != null && item.value().contains("홍길동"));
+        assertThat(result.matchedSensitiveTypeCodes()).isNotEmpty();
+        assertThat(result.matchedSensitiveTypeCodes()).contains("PERSONAL");
     }
 
     private byte[] loadResource(String fileName) throws IOException {

@@ -26,17 +26,16 @@ public class DecisionEngineImpl implements DecisionEngine {
         return new Verdict(status, reason);
     }
 
-    /**
-     * recipientType은 "internal"(발신자·수신자 동일 도메인)만 지금 해석 가능하다.
-     * 승인된 파트너 같은 그 외 유형은 정책 데이터가 없어서 컨텍스트에서 항상 {@code null}이고,
-     * 그런 유형을 요구하는 룰은 매칭되지 않는다 (context.recipientType()이 null이면
-     * rule.recipientType()!=null인 룰과는 매칭 안 됨). STEP1 정책동기화가 생기면 보강 필요.
-     */
+    /** 조건 4개(문서유형/수신자유형/민감정보유형/보안등급) 전부 매칭돼야 룰이 매칭된다. 각 조건은 null이면 무관. */
     private boolean matches(Rule rule, MailContext context) {
         boolean categoryMatches = rule.category() == null || rule.category().equals(context.category());
         boolean recipientTypeMatches = rule.recipientType() == null
                 || rule.recipientType().equals(context.recipientType());
-        return categoryMatches && recipientTypeMatches;
+        boolean sensitiveTypeMatches = rule.sensitiveType() == null
+                || context.sensitiveTypeCodes().contains(rule.sensitiveType());
+        boolean classificationMatches = rule.classification() == null
+                || rule.classification().equals(context.classification());
+        return categoryMatches && recipientTypeMatches && sensitiveTypeMatches && classificationMatches;
     }
 
     private String buildReasonPrompt(MailContext context, ScanStatus status) {
@@ -45,16 +44,19 @@ public class DecisionEngineImpl implements DecisionEngine {
                 : context.confidentialityMarking();
 
         String recipientType = context.recipientType() == null ? "외부(미분류)" : context.recipientType();
+        String sensitiveTypes = context.sensitiveTypeCodes().isEmpty()
+                ? "없음"
+                : String.join(", ", context.sensitiveTypeCodes());
+        String classification = context.classification() == null ? "미분류" : context.classification();
 
         return """
                 다음 근거로 이메일 발송에 대한 판정 사유를 한 문장으로 작성해줘.
                 - 문서유형: %s
                 - 수신자 유형: %s
-                - 개인정보 포함: %s
-                - 재무정보 포함: %s
+                - 검출된 민감정보 유형: %s
+                - 보안등급: %s
                 - 대외비 표시: %s
                 - 판정: %s
-                """.formatted(context.category(), recipientType, context.containsPersonalInfo(),
-                context.containsFinancialInfo(), marking, status);
+                """.formatted(context.category(), recipientType, sensitiveTypes, classification, marking, status);
     }
 }

@@ -8,8 +8,9 @@ public interface DocumentAnalyzer {
     /**
      * 첨부파일 하나를 분석합니다.
      *
-     * @param file 분석 대상 파일 (원본 바이트 포함)
+     * @param file      분석 대상 파일 (원본 바이트 포함)
+     * @param companyId 문서 분류에 쓸 회사별 문서유형 목록 조회 기준
      * @return 통합된 분석 결과
      */
-    DocumentAnalysisResult analyze(DocumentFile file);
+    DocumentAnalysisResult analyze(DocumentFile file, Long companyId);
 }
