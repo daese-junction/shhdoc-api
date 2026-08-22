@@ -10,6 +10,7 @@ import com.shhdoc.upstage.dto.MailRequest;
 import com.shhdoc.upstage.dto.Recipient;
 import com.shhdoc.upstage.pipeline.extract.ExtractionResult;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.Comparator;
@@ -17,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class ContextBuilderImpl implements ContextBuilder {
@@ -27,7 +29,9 @@ public class ContextBuilderImpl implements ContextBuilder {
     @Override
     public String resolveRecipientType(MailRequest mail) {
         List<String> recipientAddresses = mail.recipients().stream().map(Recipient::address).toList();
-        return resolveRecipientType(mail.companyId(), recipientAddresses);
+        String recipientType = resolveRecipientType(mail.companyId(), recipientAddresses);
+        log.info("[CONTEXT] mailId={} recipientType={}", mail.mailId(), recipientType);
+        return recipientType;
     }
 
     @Override

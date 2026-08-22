@@ -2,6 +2,7 @@ package com.shhdoc.upstage.pipeline.classify;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.shhdoc.upstage.pipeline.DocumentFile;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
@@ -19,6 +20,7 @@ import java.util.concurrent.Semaphore;
  * {@code classifySemaphore}로 동시 호출 1개로 제한한다 (Extract에서 429가
  * 실제로 발생해 세마포어를 추가했던 것과 같은 이유).
  */
+@Slf4j
 @Component
 public class DocumentClassifierImpl implements DocumentClassifier {
 
@@ -49,6 +51,7 @@ public class DocumentClassifierImpl implements DocumentClassifier {
         );
 
         ClassifyResponse response;
+        long startedAt = System.currentTimeMillis();
         classifySemaphore.acquireUninterruptibly();
         try {
             response = restClient.post()
@@ -61,7 +64,10 @@ public class DocumentClassifierImpl implements DocumentClassifier {
             classifySemaphore.release();
         }
 
-        return toClassificationResult(response);
+        ClassificationResult result = toClassificationResult(response);
+        log.info("[CLASSIFY] file={} category={} confidence={} {}ms",
+                file.fileName(), result.category(), result.confidenceScore(), System.currentTimeMillis() - startedAt);
+        return result;
     }
 
     private List<ClassifyRequest.OneOf> toOneOf(List<DocumentCategory> categories) {

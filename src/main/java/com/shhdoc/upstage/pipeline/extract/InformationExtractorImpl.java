@@ -3,6 +3,7 @@ package com.shhdoc.upstage.pipeline.extract;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shhdoc.upstage.pipeline.DocumentFile;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
@@ -25,6 +26,7 @@ import java.util.stream.Collectors;
  * 보장하고 "초당 1개"까지 강제하진 않으므로, 실제로 429가 자주 발생하면 시간기반
  * rate limiter(Resilience4j 등)로 교체가 필요하다.
  */
+@Slf4j
 @Component
 public class InformationExtractorImpl implements InformationExtractor {
 
@@ -57,6 +59,7 @@ public class InformationExtractorImpl implements InformationExtractor {
         );
 
         ExtractResponse response;
+        long startedAt = System.currentTimeMillis();
         extractSemaphore.acquireUninterruptibly();
         try {
             response = restClient.post()
@@ -69,7 +72,11 @@ public class InformationExtractorImpl implements InformationExtractor {
             extractSemaphore.release();
         }
 
-        return toExtractionResult(response);
+        ExtractionResult result = toExtractionResult(response);
+        log.info("[EXTRACT] file={} matchedTypes={} classification={} {}ms",
+                file.fileName(), result.matchedSensitiveTypeCodes(), result.classification(),
+                System.currentTimeMillis() - startedAt);
+        return result;
     }
 
     private Map<String, Object> buildSchema(List<SensitiveInfoCategory> sensitiveTypes) {

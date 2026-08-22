@@ -20,6 +20,7 @@ import com.shhdoc.upstage.policy.Policy;
 import com.shhdoc.upstage.policy.PolicyService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
@@ -57,26 +58,39 @@ public class MailProcessor {
         }
 
         MailRequest request = mail.request();
-        List<AttachmentResult> attachmentResults;
+        // mailId를 MDC에 심어두면 이 스레드에서 도는 나머지 모든 로그(그리고
+        // DocumentAnalyzerImpl이 병렬 디스패치하는 PARSE/CLASSIFY/EXTRACT 로그까지)에
+        // 자동으로 붙는다 — 단계마다 mailId를 직접 넘겨 찍을 필요가 없다.
+        MDC.put("mailId", String.valueOf(mail.mailId()));
         try {
-            // 회사 정책/어휘/수신자유형은 메일 하나의 모든 첨부가 공유하는 값이라
-            // 첨부마다 반복 조회하지 않도록 메일당 한 번만 구해서 재사용한다.
-            Policy policy = policyService.findByCompany(mail.companyId());
-            CompanyVocabulary vocabulary = documentAnalyzer.loadVocabulary(mail.companyId());
-            String recipientType = contextBuilder.resolveRecipientType(request);
-            attachmentResults = request.attachments().stream()
-                    .map(attachment -> decide(request, policy, vocabulary, recipientType, attachment))
-                    .toList();
-        } catch (RuntimeException e) {
-            log.error("mail {} 처리에 실패해 전체를 보류로 넘긴다", mail.mailId(), e);
-            attachmentResults = request.attachments().stream().map(MailProcessor::unchecked).toList();
-        }
+            log.info("[RECEIVE] mailId={} 처리 시작 (첨부 {}건)", mail.mailId(), request.attachments().size());
+            long startedAt = System.currentTimeMillis();
+            List<AttachmentResult> attachmentResults;
+            try {
+                // 회사 정책/어휘/수신자유형은 메일 하나의 모든 첨부가 공유하는 값이라
+                // 첨부마다 반복 조회하지 않도록 메일당 한 번만 구해서 재사용한다.
+                Policy policy = policyService.findByCompany(mail.companyId());
+                CompanyVocabulary vocabulary = documentAnalyzer.loadVocabulary(mail.companyId());
+                String recipientType = contextBuilder.resolveRecipientType(request);
+                attachmentResults = request.attachments().stream()
+                        .map(attachment -> decide(request, policy, vocabulary, recipientType, attachment))
+                        .toList();
+            } catch (RuntimeException e) {
+                log.error("mail {} 처리에 실패해 전체를 보류로 넘긴다", mail.mailId(), e);
+                attachmentResults = request.attachments().stream().map(MailProcessor::unchecked).toList();
+            }
 
-        // 실패해도 결과는 반드시 발행한다. 여기서 빠져나가면 첨부가 PENDING 에 영구히 남아
-        // 화면은 "검사 중"을 무한히 돌고 발송은 계속 막힌다.
-        mail.markDone();
-        mailStore.remove(mail.requestId());
-        gateway.publishDecision(new DecisionResponse(mail.mailId(), attachmentResults));
+            // 실패해도 결과는 반드시 발행한다. 여기서 빠져나가면 첨부가 PENDING 에 영구히 남아
+            // 화면은 "검사 중"을 무한히 돌고 발송은 계속 막힌다.
+            mail.markDone();
+            mailStore.remove(mail.requestId());
+            log.info("[RESPOND] mailId={} 처리 완료 {}ms, 판정={}", mail.mailId(),
+                    System.currentTimeMillis() - startedAt,
+                    attachmentResults.stream().map(AttachmentResult::status).toList());
+            gateway.publishDecision(new DecisionResponse(mail.mailId(), attachmentResults));
+        } finally {
+            MDC.remove("mailId");
+        }
     }
 
     /** 검사하지 못한 첨부는 통과가 아니라 보류다. 못 본 파일을 그냥 내보내면 안 된다. */
@@ -101,6 +115,7 @@ public class MailProcessor {
         DocumentAnalysisResult docResult = documentAnalyzer.analyze(file, vocabulary);
         MailContext context = contextBuilder.build(request, docResult, recipientType);
         Verdict verdict = decisionEngine.decide(context, policy);
+        log.info("[DECISION] file={} storageKey={} status={}", file.fileName(), attachment.storageKey(), verdict.status());
         return new AttachmentResult(attachment.storageKey(), verdict.status(), verdict.reason());
     }
 }

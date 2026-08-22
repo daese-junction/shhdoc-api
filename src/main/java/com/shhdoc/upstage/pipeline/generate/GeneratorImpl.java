@@ -1,5 +1,6 @@
 package com.shhdoc.upstage.pipeline.generate;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
@@ -13,6 +14,7 @@ import java.util.List;
  * <p>판정 사유 문장 생성처럼 짧고 가벼운 텍스트 생성에 쓰므로, 기본 추론(reasoning)을
  * 수행해 지연이 늘어나는 solar-pro4 대신 가벼운 solar-mini 모델을 쓴다.
  */
+@Slf4j
 @Component
 public class GeneratorImpl implements Generator {
 
@@ -36,6 +38,7 @@ public class GeneratorImpl implements Generator {
                 List.of(new GenerateRequest.Message("user", prompt))
         );
 
+        long startedAt = System.currentTimeMillis();
         GenerateResponse response = restClient.post()
                 .uri(endpoint)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
@@ -43,7 +46,9 @@ public class GeneratorImpl implements Generator {
                 .retrieve()
                 .body(GenerateResponse.class);
 
-        return response.choices().get(0).message().content();
+        String content = response.choices().get(0).message().content();
+        log.info("[GENERATE] {}ms", System.currentTimeMillis() - startedAt);
+        return content;
     }
 
     /** Upstage 요청 스키마 (OpenAI Chat Completion 호환) 그대로 바인딩하는 내부 전용 타입. */

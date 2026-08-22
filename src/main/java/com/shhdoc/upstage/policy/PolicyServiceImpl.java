@@ -10,6 +10,7 @@ import com.shhdoc.policy.repository.DocumentTypeRepository;
 import com.shhdoc.policy.repository.PolicyRuleRepository;
 import com.shhdoc.upstage.dto.ScanStatus;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.Collections;
@@ -21,6 +22,7 @@ import java.util.stream.Collectors;
  * 회사가 실제 등록한 정책({@code com.shhdoc.policy})을 조회해 upstage 판정 모델로 변환한다.
  * 조건 5개(대분류/문서유형/수신범위/민감정보유형/보안등급) 전부 실제 데이터로 매칭된다.
  */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class PolicyServiceImpl implements PolicyService {
@@ -41,6 +43,7 @@ public class PolicyServiceImpl implements PolicyService {
                 .filter(PolicyRule::isEnabled)
                 .flatMap(rule -> toRules(rule, documentTypeCodesByCategoryId).stream())
                 .toList();
+        log.info("[POLICY] companyId={} 룰 {}건 로드", companyId, rules.size());
         return new Policy(companyId, rules);
     }
 
