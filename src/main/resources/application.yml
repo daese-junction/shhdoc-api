@@ -35,3 +35,6 @@ spring:
 upstage:
   api-key: ${UPSTAGE_API_KEY:}
   document-parse-url: ${UPSTAGE_DOCUMENT_PARSE_URL:https://api.upstage.ai/v1/document-digitization}
+  document-classify-url: ${UPSTAGE_DOCUMENT_CLASSIFY_URL:https://api.upstage.ai/v1/document-classification/chat/completions}
+  information-extract-url: ${UPSTAGE_INFORMATION_EXTRACT_URL:https://api.upstage.ai/v1/information-extraction/chat/completions}
+  generate-url: ${UPSTAGE_GENERATE_URL:https://api.upstage.ai/v1/chat/completions}
