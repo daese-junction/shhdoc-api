@@ -4,15 +4,15 @@ services:
     environment:
       - 'MYSQL_DATABASE=shhdoc'
       - 'MYSQL_USER=shhdoc'
-      - 'MYSQL_PASSWORD=shhdoc'
-      - 'MYSQL_ROOT_PASSWORD=root'
+      - 'MYSQL_PASSWORD=${MYSQL_PASSWORD:-shhdoc}'
+      - 'MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-root}'
     # 볼륨이 없으면 데이터가 컨테이너 안에만 남아 재생성 한 번에 DB 가 통째로 사라진다.
     volumes:
       - 'mysql-data:/var/lib/mysql'
     ports:
-      - '3306:3306'
+      - '127.0.0.1:3306:3306'
     healthcheck:
-      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-u', 'root', '-proot']
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-u', 'root', '-p${MYSQL_ROOT_PASSWORD:-root}']
       interval: 5s
       timeout: 5s
       retries: 10
@@ -45,7 +45,7 @@ services:
     environment:
       - 'SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/shhdoc'
       - 'SPRING_DATASOURCE_USERNAME=shhdoc'
-      - 'SPRING_DATASOURCE_PASSWORD=shhdoc'
+      - 'SPRING_DATASOURCE_PASSWORD=${MYSQL_PASSWORD:-shhdoc}'
       - 'JWT_SECRET=${JWT_SECRET}'
       - 'STORAGE_ENDPOINT=http://minio:9000'
       - 'STORAGE_PUBLIC_ENDPOINT=${STORAGE_PUBLIC_ENDPOINT:-https://shhdoc-storage.daeonlab.com}'
@@ -57,7 +57,7 @@ services:
       minio:
         condition: service_healthy
     ports:
-      - '8080:8080'
+      - '127.0.0.1:8080:8080'
     restart: on-failure
 
   nginx:
