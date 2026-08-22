@@ -1,4 +1,4 @@
-package com.shhdoc.upstage.pipeline;
+package com.shhdoc.upstage.pipeline.generate;
 
 /** Upstage Generate(Solar LLM Chat Completion) API 호출 모듈. 판단 사유 문장 등을 생성합니다. */
 public interface Generator {

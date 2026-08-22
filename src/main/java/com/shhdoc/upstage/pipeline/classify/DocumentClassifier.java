@@ -1,4 +1,4 @@
-package com.shhdoc.upstage.pipeline;
+package com.shhdoc.upstage.pipeline.classify;
 
 import com.shhdoc.upstage.dto.Attachment;
 

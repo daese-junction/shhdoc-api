@@ -1,4 +1,4 @@
-package com.shhdoc.upstage.pipeline;
+package com.shhdoc.upstage.pipeline.split;
 
 import com.shhdoc.upstage.dto.Attachment;
 
