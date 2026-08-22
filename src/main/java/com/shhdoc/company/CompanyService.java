@@ -6,6 +6,7 @@ import com.shhdoc.company.dto.AddMemberRequest;
 import com.shhdoc.company.dto.CompanyResponse;
 import com.shhdoc.company.dto.CreateCompanyRequest;
 import com.shhdoc.company.dto.CreateCompanyResponse;
+import com.shhdoc.policy.service.PolicySeedService;
 import com.shhdoc.user.Role;
 import com.shhdoc.user.User;
 import com.shhdoc.user.UserRepository;
@@ -25,6 +26,7 @@ public class CompanyService {
     private final CompanyRepository companyRepository;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final PolicySeedService policySeedService;
 
     /** 대표자의 최초 진입점. 회사와 ADMIN 계정이 함께 생긴다. */
     @Transactional
@@ -34,6 +36,7 @@ public class CompanyService {
             throw new ApiException(HttpStatus.CONFLICT, "이미 등록된 회사 도메인입니다.");
         }
         Company company = companyRepository.save(new Company(request.companyName(), emailDomain));
+        policySeedService.seedFor(company);
         User admin = createUser(company, request.email(), request.password(), request.name(),
                 Role.ADMIN, request.department(), request.position());
         return new CreateCompanyResponse(CompanyResponse.from(company), UserResponse.from(admin));

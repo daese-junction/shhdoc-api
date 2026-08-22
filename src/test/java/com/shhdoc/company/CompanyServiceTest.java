@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import com.shhdoc.common.ApiException;
 import com.shhdoc.company.dto.AddMemberRequest;
 import com.shhdoc.company.dto.CreateCompanyRequest;
+import com.shhdoc.policy.service.PolicySeedService;
 import com.shhdoc.user.Role;
 import com.shhdoc.user.User;
 import com.shhdoc.user.UserRepository;
@@ -36,6 +37,9 @@ class CompanyServiceTest {
 
     @Mock
     private PasswordEncoder passwordEncoder;
+
+    @Mock
+    private PolicySeedService policySeedService;
 
     @InjectMocks
     private CompanyService companyService;
