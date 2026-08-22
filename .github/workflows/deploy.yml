@@ -9,7 +9,35 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: SSH deploy
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # main 에서 도는 유일한 빌드다. setup-gradle 은 기본 브랜치가 아니면 캐시를
+      # read-only 로 열어서, 여기서 안 채우면 PR CI 는 매번 의존성을 새로 받는다.
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # 테스트는 PR CI 에서 이미 돌았다. 여기서는 jar 만 만든다.
+      - name: Build jar
+        run: |
+          ./gradlew bootJar
+          cp build/libs/*.jar deploy/app.jar
+
+      - name: Upload jar
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          password: ${{ secrets.SSH_PASSWD }}
+          source: deploy/app.jar
+          target: ~/shhdoc-api
+
+      - name: Restart
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -19,3 +47,5 @@ jobs:
             cd ~/shhdoc-api
             git pull
             docker compose --profile deploy up --build -d
+            # 배포마다 직전 이미지가 dangling 으로 남는다. 서버 디스크가 10GB 라 금방 찬다.
+            docker image prune -f
