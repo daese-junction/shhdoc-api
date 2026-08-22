@@ -33,5 +33,5 @@ spring:
       max-request-size: 20MB
 
 upstage:
-  api-key: ${UPSTAGE_API_KEY:}
+  api-key: ${UPSTAGE_API_KEY}
   document-parse-url: ${UPSTAGE_DOCUMENT_PARSE_URL:https://api.upstage.ai/v1/document-digitization}
