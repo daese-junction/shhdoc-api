@@ -1,17 +1,19 @@
 package com.shhdoc.upstage.pipeline.extract;
 
-import com.shhdoc.upstage.dto.Attachment;
+import com.shhdoc.upstage.pipeline.DocumentFile;
 
-import java.util.Map;
-
-/** Upstage Information Extract API 호출 모듈. 문서에서 정의된 스키마의 정보를 추출합니다. */
+/**
+ * Upstage Information Extract API 호출 모듈. 문서유형과 무관한 고정된 범용 민감정보
+ * 스키마로 정보를 추출합니다. 문서유형 자체는 {@code classify.DocumentClassifier}가
+ * 별도로 담당한다.
+ */
 public interface InformationExtractor {
 
     /**
-     * 문서에서 필요한 정보를 스키마 형태로 추출합니다.
+     * 문서에서 민감정보를 추출합니다.
      *
-     * @param attachment 추출 대상 첨부파일
-     * @return 추출된 필드-값 쌍 (구체 타입 미정, 추후 확정)
+     * @param file 추출 대상 파일
+     * @return 추출 결과
      */
-    Map<String, Object> extract(Attachment attachment);
+    ExtractionResult extract(DocumentFile file);
 }
