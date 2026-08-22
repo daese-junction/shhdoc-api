@@ -5,7 +5,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.springframework.web.client.RestClient;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -29,7 +28,7 @@ class DocumentParserImplIntegrationTest {
     @BeforeEach
     void setUp() {
         String apiKey = System.getenv("UPSTAGE_API_KEY");
-        documentParser = new DocumentParserImpl(RestClient.builder(), apiKey, ENDPOINT);
+        documentParser = new DocumentParserImpl(apiKey, ENDPOINT);
     }
 
     @ParameterizedTest

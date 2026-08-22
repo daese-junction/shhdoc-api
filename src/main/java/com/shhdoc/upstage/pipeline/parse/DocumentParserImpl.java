@@ -25,10 +25,9 @@ public class DocumentParserImpl implements DocumentParser {
     private final String apiKey;
     private final String endpoint;
 
-    public DocumentParserImpl(RestClient.Builder restClientBuilder,
-                               @Value("${upstage.api-key}") String apiKey,
+    public DocumentParserImpl(@Value("${upstage.api-key}") String apiKey,
                                @Value("${upstage.document-parse-url}") String endpoint) {
-        this.restClient = restClientBuilder.build();
+        this.restClient = RestClient.builder().build();
         this.apiKey = apiKey;
         this.endpoint = endpoint;
     }
