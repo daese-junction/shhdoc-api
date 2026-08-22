@@ -1,6 +1,8 @@
 package com.shhdoc.upstage;
 
 import com.shhdoc.TestcontainersConfiguration;
+import com.shhdoc.company.Company;
+import com.shhdoc.company.CompanyRepository;
 import com.shhdoc.upstage.dto.Attachment;
 import com.shhdoc.upstage.dto.DecisionResponse;
 import com.shhdoc.upstage.dto.MailRequest;
@@ -58,6 +60,9 @@ class GatewayEndToEndTest {
     @Autowired
     private ApplicationEvents events;
 
+    @Autowired
+    private CompanyRepository companyRepository;
+
     private record DocumentCase(
             Long mailId, String fileName, String storageKey, String recipientAddress, ScanStatus expectedStatus) {
     }
@@ -77,10 +82,15 @@ class GatewayEndToEndTest {
 
     @Test
     void enqueue부터_publishDecision까지_5건을_동시에_처리한다() {
+        // recipientType(internal/external) 판정이 실 DB(CompanyRepository)를 조회하므로
+        // SENDER/INTERNAL_RECIPIENT와 같은 도메인(company.com)의 회사를 실제로 저장해야
+        // "내부발송" 케이스가 제대로 internal로 판정된다.
+        Long companyId = companyRepository.save(new Company("테스트회사", "company.com")).getId();
+
         for (DocumentCase testCase : CASES) {
             Attachment attachment = new Attachment(testCase.fileName(), 1L, testCase.storageKey(), "fake-hash");
             MailRequest request = new MailRequest(
-                    testCase.mailId(), 1L, SENDER, 1L, "제목", "본문",
+                    testCase.mailId(), companyId, SENDER, 1L, "제목", "본문",
                     List.of(new Recipient(testCase.recipientAddress())),
                     List.of(attachment)
             );
