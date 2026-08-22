@@ -50,4 +50,19 @@ class MailStoreTest {
 
         assertThat(incomplete).containsExactlyInAnyOrder(pending, processing);
     }
+
+    @Test
+    void remove하면_더는_get으로_조회되지_않는다() {
+        Mail mail = newMail(1, 100);
+        store.save(mail);
+
+        store.remove(1);
+
+        assertThatThrownBy(() -> store.get(1)).isInstanceOf(NoSuchElementException.class);
+    }
+
+    @Test
+    void 없는_mailId를_remove해도_에러_안난다() {
+        store.remove(999);
+    }
 }

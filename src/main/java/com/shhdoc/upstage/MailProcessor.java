@@ -62,6 +62,7 @@ public class MailProcessor {
                 .toList();
 
         mail.markDone();
+        mailStore.remove(mail.mailId());
         gateway.publishDecision(new DecisionResponse(mail.mailId(), attachmentResults));
     }
 

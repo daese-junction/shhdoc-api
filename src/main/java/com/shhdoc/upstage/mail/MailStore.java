@@ -33,4 +33,13 @@ public class MailStore {
                 .filter(mail -> mail.status() != QueueStatus.DONE)
                 .toList();
     }
+
+    /**
+     * 저장소에서 메일을 제거한다. DONE 처리되고 결과까지 발행된 메일은 더 이상
+     * 아무도 조회하지 않으므로({@link #findIncompleteByCompany}가 애초에 DONE을
+     * 걸러냄), 계속 들고 있으면 메모리만 계속 늘어난다 — 완료 직후 바로 지운다.
+     */
+    public void remove(Integer mailId) {
+        mails.remove(mailId);
+    }
 }
