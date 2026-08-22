@@ -9,5 +9,5 @@ public interface PolicyService {
      * @param companyId 조회 대상 기업 식별자
      * @return 해당 기업의 보안 정책
      */
-    Policy findByCompany(Integer companyId);
+    Policy findByCompany(Long companyId);
 }

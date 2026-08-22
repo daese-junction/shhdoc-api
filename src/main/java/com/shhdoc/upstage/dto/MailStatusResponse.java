@@ -7,7 +7,7 @@ package com.shhdoc.upstage.dto;
  * @param status 큐 처리 상태
  */
 public record MailStatusResponse(
-        Integer mailId,
+        Long mailId,
         QueueStatus status
 ) {
 }

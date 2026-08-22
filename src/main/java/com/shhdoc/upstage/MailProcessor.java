@@ -49,9 +49,9 @@ public class MailProcessor {
     @Async(MailProcessorConfig.EXECUTOR_BEAN_NAME)
     @EventListener
     public void handle(MailReceivedEvent event) {
-        Mail mail = mailStore.get(event.mailId());
+        Mail mail = mailStore.get(event.requestId());
         if (!mail.tryMarkProcessing()) {
-            log.warn("mail {} is already being processed or done, skip duplicate event", event.mailId());
+            log.warn("request {} is already being processed or done, skip duplicate event", event.requestId());
             return;
         }
 
@@ -71,6 +71,7 @@ public class MailProcessor {
         // 화면은 "검사 중"을 무한히 돌고 발송은 계속 막힌다.
         mail.markDone();
         gateway.publishDecision(new DecisionResponse(mail.mailId(), attachmentResults));
+        mailStore.remove(mail.requestId());
     }
 
     /** 검사하지 못한 첨부는 통과가 아니라 보류다. 못 본 파일을 그냥 내보내면 안 된다. */

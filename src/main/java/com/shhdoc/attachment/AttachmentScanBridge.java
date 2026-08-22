@@ -28,13 +28,7 @@ public class AttachmentScanBridge {
     private final AttachmentRepository attachmentRepository;
     private final Gateway gateway;
 
-    /**
-     * 커밋 이후에 검사를 요청한다. 첨부 한 건이 요청 하나다.
-     *
-     * <p>큐 키로 메일 id 가 아니라 첨부 id 를 쓴다. MailStore 가 mailId 로 덮어쓰기 때문에,
-     * 같은 메일에 첨부를 연달아 붙이면 먼저 온 요청이 지워져 검사되지 않는다.
-     * 결과는 storageKey 로 되돌아오므로 이 키가 무엇이든 반영에는 영향이 없다.
-     */
+    /** 커밋 이후에 검사를 요청한다. 첨부 한 건이 요청 하나다. */
     @TransactionalEventListener
     public void requestScan(AttachmentRegisteredEvent event) {
         attachmentRepository.findById(event.attachmentId())
@@ -55,16 +49,16 @@ public class AttachmentScanBridge {
     private static MailRequest toMailRequest(Attachment attachment) {
         Email email = attachment.getEmail();
         return new MailRequest(
-                attachment.getId().intValue(),
-                email.getSender().getCompany().getId().intValue(),
+                email.getId(),
+                email.getSender().getCompany().getId(),
                 email.getSenderAddress(),
-                email.getSender().getId().intValue(),
+                email.getSender().getId(),
                 email.getSubject(),
                 email.getBody(),
                 email.getRecipients().stream().map(r -> new Recipient(r.getAddress())).toList(),
                 List.of(new com.shhdoc.upstage.dto.Attachment(
                         attachment.getFilename(),
-                        attachment.getSizeBytes() == null ? null : attachment.getSizeBytes().intValue(),
+                        attachment.getSizeBytes(),
                         attachment.getStorageKey(),
                         attachment.getContentHash())));
     }

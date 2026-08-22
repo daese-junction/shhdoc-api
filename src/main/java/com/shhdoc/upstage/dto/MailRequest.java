@@ -15,10 +15,10 @@ import java.util.List;
  * @param attachments   첨부파일 목록
  */
 public record MailRequest(
-        Integer mailId,
-        Integer companyId,
+        Long mailId,
+        Long companyId,
         String senderAddress,
-        Integer senderId,
+        Long senderId,
         String subject,
         String body,
         List<Recipient> recipients,

@@ -10,7 +10,7 @@ import java.util.List;
  * @param rules     정책 룰 목록
  */
 public record Policy(
-        Integer companyId,
+        Long companyId,
         List<Rule> rules
 ) {
 }

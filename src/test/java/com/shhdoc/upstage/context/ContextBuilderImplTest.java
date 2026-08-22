@@ -29,7 +29,7 @@ class ContextBuilderImplTest {
     @Test
     void mail과_분석결과를_MailContext로_조립한다() {
         MailRequest mail = new MailRequest(
-                1, 100, "sender@a.com", 1, "제목", "본문",
+                1L, 100L, "sender@a.com", 1L, "제목", "본문",
                 List.of(new Recipient("r1@b.com"), new Recipient("r2@b.com")),
                 List.of()
         );
@@ -48,7 +48,7 @@ class ContextBuilderImplTest {
     @Test
     void 발신자와_수신자_도메인이_다르면_recipientType은_미해석이다() {
         MailRequest mail = new MailRequest(
-                1, 100, "sender@a.com", 1, "제목", "본문",
+                1L, 100L, "sender@a.com", 1L, "제목", "본문",
                 List.of(new Recipient("r1@b.com")),
                 List.of()
         );
@@ -61,7 +61,7 @@ class ContextBuilderImplTest {
     @Test
     void 발신자와_모든_수신자_도메인이_같으면_internal이다() {
         MailRequest mail = new MailRequest(
-                1, 100, "sender@a.com", 1, "제목", "본문",
+                1L, 100L, "sender@a.com", 1L, "제목", "본문",
                 List.of(new Recipient("r1@a.com"), new Recipient("r2@a.com")),
                 List.of()
         );
@@ -74,7 +74,7 @@ class ContextBuilderImplTest {
     @Test
     void 수신자_중_하나라도_다른_도메인이면_internal이_아니다() {
         MailRequest mail = new MailRequest(
-                1, 100, "sender@a.com", 1, "제목", "본문",
+                1L, 100L, "sender@a.com", 1L, "제목", "본문",
                 List.of(new Recipient("r1@a.com"), new Recipient("r2@b.com")),
                 List.of()
         );

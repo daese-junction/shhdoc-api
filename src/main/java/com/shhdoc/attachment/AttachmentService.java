@@ -58,6 +58,24 @@ public class AttachmentService {
         return AttachmentResponse.from(saved);
     }
 
+    /**
+     * 판정을 지우고 다시 검사한다. 검사가 실패하면 그 첨부는 계속 보류라 발송이 막히는데,
+     * 다시 시도할 길이 없으면 관리자 승인 말고는 풀 방법이 없다.
+     */
+    @Transactional
+    public AttachmentResponse rescan(Long userId, Long attachmentId) {
+        Attachment attachment = attachmentRepository.findById(attachmentId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, NOT_FOUND));
+        requireEditableEmail(userId, attachment.getEmail().getId());
+
+        if (attachment.getScanStatus() == ScanStatus.PENDING) {
+            throw new ApiException(HttpStatus.CONFLICT, "이미 검사 중입니다.");
+        }
+        attachment.resetScan();
+        eventPublisher.publishEvent(new AttachmentRegisteredEvent(attachment.getId()));
+        return AttachmentResponse.from(attachment);
+    }
+
     public List<AttachmentResponse> list(Long userId, Long companyId, Role role, Long emailId) {
         requireViewableEmail(userId, companyId, role, emailId);
         return attachmentRepository.findByEmailIdOrderByIdAsc(emailId).stream()

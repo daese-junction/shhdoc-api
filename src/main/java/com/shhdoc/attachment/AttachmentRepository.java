@@ -17,6 +17,9 @@ public interface AttachmentRepository extends JpaRepository<Attachment, Long> {
     /** 검사가 끝나지 않은 첨부가 남았는지. 판정 전에 나가는 것을 막는다. */
     boolean existsByEmailIdAndScanStatus(Long emailId, ScanStatus scanStatus);
 
+    /** 기동 시 되살릴 대상. 인메모리 큐가 날아가도 이 행들은 DB 에 남아 있다. */
+    List<Attachment> findByScanStatus(ScanStatus scanStatus);
+
     /** 판정 결과는 storageKey 로 돌아온다. 컬럼에 unique 가 걸려 있어 한 건만 나온다. */
     Optional<Attachment> findByStorageKey(String storageKey);
 }

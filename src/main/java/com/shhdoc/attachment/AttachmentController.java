@@ -96,6 +96,27 @@ public class AttachmentController {
         return attachmentService.createDownloadUrl(principal.id(), principal.companyId(), principal.role(), id);
     }
 
+    @Operation(
+            summary = "첨부 재검사",
+            description = """
+                    판정을 지우고 다시 검사한다. 응답의 scanStatus 는 PENDING 으로 돌아가며,
+                    결과는 첨부 목록 조회로 확인한다.
+
+                    검사가 실패한 파일을 다시 시도할 때 쓴다. 재검사가 없으면 그 메일은
+                    관리자 승인 말고는 내보낼 방법이 없다.
+                    """)
+    @ApiResponses({
+            @ApiResponse(responseCode = "400", description = "DRAFT 가 아님", content = @Content),
+            @ApiResponse(responseCode = "404", description = "없거나 내 메일이 아님", content = @Content),
+            @ApiResponse(responseCode = "409", description = "이미 검사 중", content = @Content)
+    })
+    @PostMapping("/attachments/{id}/rescan")
+    public AttachmentResponse rescan(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long id) {
+        return attachmentService.rescan(principal.id(), id);
+    }
+
     @Operation(summary = "첨부 삭제", description = "DRAFT 상태의 내 메일에서만. 스토리지 객체도 함께 지운다.")
     @ApiResponses({
             @ApiResponse(responseCode = "400", description = "DRAFT 가 아님", content = @Content),

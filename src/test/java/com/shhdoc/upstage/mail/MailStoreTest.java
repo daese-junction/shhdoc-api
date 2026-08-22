@@ -1,53 +1,63 @@
 package com.shhdoc.upstage.mail;
 
-import com.shhdoc.upstage.dto.MailRequest;
-import org.junit.jupiter.api.Test;
-
-import java.util.List;
-import java.util.NoSuchElementException;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import com.shhdoc.upstage.dto.MailRequest;
+import java.util.List;
+import java.util.NoSuchElementException;
+import org.junit.jupiter.api.Test;
 
 class MailStoreTest {
 
     private final MailStore store = new MailStore();
 
-    private Mail newMail(Integer mailId, Integer companyId) {
-        MailRequest request = new MailRequest(mailId, companyId, "a@a.com", 1, "제목", "본문", List.of(), List.of());
-        return new Mail(request);
+    private static MailRequest newRequest(Long mailId, Long companyId) {
+        return new MailRequest(mailId, companyId, "a@a.com", 1L, "제목", "본문", List.of(), List.of());
     }
 
     @Test
-    void save한_메일을_get으로_조회한다() {
-        Mail mail = newMail(1, 100);
-        store.save(mail);
+    void save한_요청을_requestId로_조회한다() {
+        Mail mail = store.save(newRequest(1L, 100L));
 
-        assertThat(store.get(1)).isSameAs(mail);
+        assertThat(store.get(mail.requestId())).isSameAs(mail);
     }
 
     @Test
-    void 없는_mailId를_get하면_예외() {
-        assertThatThrownBy(() -> store.get(999)).isInstanceOf(NoSuchElementException.class);
+    void 없는_requestId를_get하면_예외() {
+        assertThatThrownBy(() -> store.get(999L)).isInstanceOf(NoSuchElementException.class);
+    }
+
+    /** 같은 메일을 두 번 넣어도 앞선 요청이 지워지지 않아야 한다. 덮어쓰면 검사가 통째로 누락된다. */
+    @Test
+    void 같은_메일을_두_번_넣어도_각각_남는다() {
+        Mail first = store.save(newRequest(1L, 100L));
+        Mail second = store.save(newRequest(1L, 100L));
+
+        assertThat(first.requestId()).isNotEqualTo(second.requestId());
+        assertThat(store.get(first.requestId())).isSameAs(first);
+        assertThat(store.get(second.requestId())).isSameAs(second);
     }
 
     @Test
-    void findIncompleteByCompany는_DONE된_메일은_제외하고_같은_회사만_반환한다() {
-        Mail pending = newMail(1, 100);
-        Mail processing = newMail(2, 100);
+    void findIncompleteByCompany는_DONE된_요청은_제외하고_같은_회사만_반환한다() {
+        Mail pending = store.save(newRequest(1L, 100L));
+        Mail processing = store.save(newRequest(2L, 100L));
         processing.tryMarkProcessing();
-        Mail done = newMail(3, 100);
+        Mail done = store.save(newRequest(3L, 100L));
         done.tryMarkProcessing();
         done.markDone();
-        Mail otherCompany = newMail(4, 200);
+        store.save(newRequest(4L, 200L));
 
-        store.save(pending);
-        store.save(processing);
-        store.save(done);
-        store.save(otherCompany);
+        assertThat(store.findIncompleteByCompany(100L)).containsExactlyInAnyOrder(pending, processing);
+    }
 
-        List<Mail> incomplete = store.findIncompleteByCompany(100);
+    @Test
+    void remove하면_큐에서_사라진다() {
+        Mail mail = store.save(newRequest(1L, 100L));
 
-        assertThat(incomplete).containsExactlyInAnyOrder(pending, processing);
+        store.remove(mail.requestId());
+
+        assertThat(store.findIncompleteByCompany(100L)).isEmpty();
     }
 }

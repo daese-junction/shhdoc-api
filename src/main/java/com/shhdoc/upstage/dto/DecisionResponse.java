@@ -9,7 +9,7 @@ import java.util.List;
  * @param attachments 첨부파일별 스캔 결과
  */
 public record DecisionResponse(
-        Integer mailId,
+        Long mailId,
         List<AttachmentResult> attachments
 ) {
 }

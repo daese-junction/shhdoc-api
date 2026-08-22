@@ -62,14 +62,13 @@ class MailProcessorTest {
     }
 
     private MailRequest requestWithOneAttachment() {
-        Attachment attachment = new Attachment("f.pdf", 100, "storage-key-1", "hash");
-        return new MailRequest(1, 100, "a@a.com", 1, "제목", "본문", List.of(), List.of(attachment));
+        Attachment attachment = new Attachment("f.pdf", 100L, "storage-key-1", "hash");
+        return new MailRequest(1L, 100L, "a@a.com", 1L, "제목", "본문", List.of(), List.of(attachment));
     }
 
     @Test
     void 정상흐름_첨부파일마다_판정하고_DONE으로_바꾸고_publishDecision을_호출한다() {
-        Mail mail = new Mail(requestWithOneAttachment());
-        mailStore.save(mail);
+        Mail mail = mailStore.save(requestWithOneAttachment());
 
         DocumentFile file = new DocumentFile("f.pdf", new byte[0]);
         DocumentAnalysisResult docResult = new DocumentAnalysisResult(
@@ -77,19 +76,19 @@ class MailProcessorTest {
                 new ClassificationResult("payslip", 0.9),
                 new ExtractionResult(List.of(), true, false, ""));
         MailContext context = new MailContext("a@a.com", List.of(), null, "payslip", List.of(), true, false, "");
-        Policy policy = new Policy(100, List.of());
+        Policy policy = new Policy(100L, List.of());
         Verdict verdict = new Verdict(ScanStatus.REVIEW, "사유");
 
         when(attachmentLoader.load(any())).thenReturn(file);
         when(documentAnalyzer.analyze(file)).thenReturn(docResult);
         when(contextBuilder.build(any(), any())).thenReturn(context);
-        when(policyService.findByCompany(100)).thenReturn(policy);
+        when(policyService.findByCompany(100L)).thenReturn(policy);
         when(decisionEngine.decide(context, policy)).thenReturn(verdict);
 
-        mailProcessor.handle(new MailReceivedEvent(1));
+        mailProcessor.handle(new MailReceivedEvent(mail.requestId()));
 
         assertThat(mail.status()).isEqualTo(QueueStatus.DONE);
-        verify(gateway).publishDecision(new DecisionResponse(1,
+        verify(gateway).publishDecision(new DecisionResponse(1L,
                 List.of(new com.shhdoc.upstage.dto.AttachmentResult("storage-key-1", ScanStatus.REVIEW, "사유"))));
     }
 
@@ -99,16 +98,15 @@ class MailProcessorTest {
      */
     @Test
     void 분석이_실패해도_보류_판정으로_결과를_발행한다() {
-        Mail mail = new Mail(requestWithOneAttachment());
-        mailStore.save(mail);
+        Mail mail = mailStore.save(requestWithOneAttachment());
 
-        when(policyService.findByCompany(100)).thenReturn(new Policy(100, List.of()));
+        when(policyService.findByCompany(100L)).thenReturn(new Policy(100L, List.of()));
         when(attachmentLoader.load(any())).thenThrow(new RuntimeException("스토리지 접근 실패"));
 
-        mailProcessor.handle(new MailReceivedEvent(1));
+        mailProcessor.handle(new MailReceivedEvent(mail.requestId()));
 
         assertThat(mail.status()).isEqualTo(QueueStatus.DONE);
-        verify(gateway).publishDecision(new DecisionResponse(1,
+        verify(gateway).publishDecision(new DecisionResponse(1L,
                 List.of(new com.shhdoc.upstage.dto.AttachmentResult("storage-key-1", ScanStatus.REVIEW,
                         "자동 검사를 완료하지 못했습니다. 관리자 확인이 필요합니다."))));
     }
@@ -116,15 +114,14 @@ class MailProcessorTest {
     /** 정책 조회처럼 첨부 루프 밖에서 터지는 경우도 마찬가지다. */
     @Test
     void 정책_조회가_실패해도_보류_판정으로_결과를_발행한다() {
-        Mail mail = new Mail(requestWithOneAttachment());
-        mailStore.save(mail);
+        Mail mail = mailStore.save(requestWithOneAttachment());
 
-        when(policyService.findByCompany(100)).thenThrow(new RuntimeException("정책 없음"));
+        when(policyService.findByCompany(100L)).thenThrow(new RuntimeException("정책 없음"));
 
-        mailProcessor.handle(new MailReceivedEvent(1));
+        mailProcessor.handle(new MailReceivedEvent(mail.requestId()));
 
         assertThat(mail.status()).isEqualTo(QueueStatus.DONE);
-        verify(gateway).publishDecision(new DecisionResponse(1,
+        verify(gateway).publishDecision(new DecisionResponse(1L,
                 List.of(new com.shhdoc.upstage.dto.AttachmentResult("storage-key-1", ScanStatus.REVIEW,
                         "자동 검사를 완료하지 못했습니다. 관리자 확인이 필요합니다."))));
         verifyNoInteractions(documentAnalyzer, contextBuilder, decisionEngine);
@@ -132,11 +129,10 @@ class MailProcessorTest {
 
     @Test
     void 이미_처리중인_메일이면_아무것도_안하고_스킵한다() {
-        Mail mail = new Mail(requestWithOneAttachment());
+        Mail mail = mailStore.save(requestWithOneAttachment());
         mail.tryMarkProcessing();
-        mailStore.save(mail);
 
-        mailProcessor.handle(new MailReceivedEvent(1));
+        mailProcessor.handle(new MailReceivedEvent(mail.requestId()));
 
         verifyNoInteractions(documentAnalyzer, contextBuilder, decisionEngine);
         verify(gateway, never()).publishDecision(any());
