@@ -1,0 +1,105 @@
+// shhdoc-api ERD
+// https://dbml.dbdiagram.io/docs
+
+Table companies {
+  id integer [primary key]
+  name varchar [not null]
+  email_domain varchar [not null, unique, note: '이 회사 계정은 전부 이 도메인. 사내/사외 판정 근거']
+  created_at timestamp
+}
+
+Table users {
+  id integer [primary key]
+  company_id integer [not null]
+  email varchar [not null, unique, note: '반드시 소속 회사의 email_domain']
+  password_hash varchar [not null]
+  name varchar
+  role varchar [not null, note: 'USER | ADMIN. 회사를 만든 대표자가 ADMIN']
+  refresh_token varchar [note: 'null이면 로그아웃 상태']
+  created_at timestamp
+}
+
+Table emails {
+  id integer [primary key]
+  sender_address varchar [not null]
+  sender_id integer [note: '내부 발신자일 때만. 외부에서 받은 메일은 null']
+  subject varchar
+  body text
+  status varchar [not null, note: 'DRAFT | BLOCKED | REJECTED | SENT | RECEIVED. BLOCKED = 관리자 승인 대기']
+  reviewed_by integer [note: '승인/거절한 관리자']
+  reviewed_at timestamp
+  review_note text [note: '관리자 사유. 거절이면 발신자에게 보여줌']
+  sent_at timestamp
+  created_at timestamp
+
+  indexes {
+    status [note: '관리자 승인 대기열 조회']
+  }
+}
+
+Table email_recipients {
+  id integer [primary key]
+  email_id integer [not null]
+  address varchar [not null, note: '외부 수신자도 있으므로 users FK 아님']
+  type varchar [not null, note: 'TO | CC | BCC']
+  is_read boolean [not null, default: false]
+
+  indexes {
+    address [note: '받은 메일함 조회']
+  }
+}
+
+Table attachments {
+  id integer [primary key]
+  email_id integer [not null]
+  filename varchar [not null]
+  size_bytes integer
+  storage_key varchar [not null]
+  content_hash varchar [not null, note: 'SHA-256. 같은 파일이면 이전 판정 재사용']
+  scan_status varchar [not null, note: 'PENDING | DONE | FAILED']
+  verdict varchar [note: 'ALLOWED | BLOCKED']
+  reason text [note: '판별 근거']
+  scanned_at timestamp
+  created_at timestamp
+
+  indexes {
+    content_hash
+  }
+}
+
+Ref: users.company_id > companies.id
+
+Ref: emails.sender_id > users.id
+
+Ref: emails.reviewed_by > users.id
+
+Ref: email_recipients.email_id > emails.id
+
+Ref: attachments.email_id > emails.id
+
+Records companies(id, name, email_domain) {
+  0, '쉿닥', 'shhdoc.com'
+}
+
+Records users(id, company_id, email, role) {
+  0, 0, 'alice@shhdoc.com', 'ADMIN'
+  1, 0, 'bob@shhdoc.com', 'USER'
+}
+
+Records emails(id, sender_address, sender_id, subject, status, reviewed_by) {
+  0, 'bob@shhdoc.com', 1, '3분기 실적 공유', 'SENT', null
+  1, 'bob@shhdoc.com', 1, '내부 설계도', 'BLOCKED', null
+  2, 'partner@example.com', null, '회신드립니다', 'RECEIVED', null
+  3, 'bob@shhdoc.com', 1, '계약서 송부', 'SENT', 0
+}
+
+Records email_recipients(id, email_id, address, type, is_read) {
+  0, 0, 'partner@example.com', 'TO', false
+  1, 1, 'partner@example.com', 'TO', false
+  2, 2, 'bob@shhdoc.com', 'TO', false
+}
+
+Records attachments(id, email_id, filename, content_hash, scan_status, verdict) {
+  0, 0, 'q3_public.pdf', 'a1b2c3', 'DONE', 'ALLOWED'
+  1, 1, 'internal_spec.pdf', 'd4e5f6', 'DONE', 'BLOCKED'
+}

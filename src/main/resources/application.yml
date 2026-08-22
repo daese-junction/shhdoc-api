@@ -1,3 +1,9 @@
+jwt:
+  # 로컬 개발용 기본값. 배포는 JWT_SECRET 환경변수로 반드시 덮어쓸 것 (HS256이라 32바이트 이상)
+  secret: ${JWT_SECRET:local-dev-secret-change-me-32bytes-min!!}
+  access-validity-minutes: 30
+  refresh-validity-days: 7
+
 spring:
   application:
     name: shhdoc-api

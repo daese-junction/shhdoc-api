@@ -1,0 +1,106 @@
+package com.shhdoc.company;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+
+import com.shhdoc.common.ApiException;
+import com.shhdoc.company.dto.AddMemberRequest;
+import com.shhdoc.company.dto.CreateCompanyRequest;
+import com.shhdoc.user.User;
+import com.shhdoc.user.UserRepository;
+import java.util.Optional;
+import org.assertj.core.api.InstanceOfAssertFactories;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+/** 회사 도메인 고정 규칙이 실제로 계정 생성을 막는지 확인한다. */
+@ExtendWith(MockitoExtension.class)
+class CompanyServiceTest {
+
+    @Mock
+    private CompanyRepository companyRepository;
+
+    @Mock
+    private UserRepository userRepository;
+
+    @Mock
+    private PasswordEncoder passwordEncoder;
+
+    @InjectMocks
+    private CompanyService companyService;
+
+    @Test
+    void 이미_등록된_도메인으로_회사를_만들면_409() {
+        given(companyRepository.existsByEmailDomain("shhdoc.com")).willReturn(true);
+
+        assertThatThrownBy(() -> companyService.createCompany(
+                new CreateCompanyRequest("쉿닥", "shhdoc.com", "alice@shhdoc.com", "password123", "alice")))
+                .asInstanceOf(InstanceOfAssertFactories.type(ApiException.class))
+                .extracting(ApiException::getStatus)
+                .isEqualTo(HttpStatus.CONFLICT);
+
+        verify(companyRepository, never()).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void 대표자_이메일이_회사_도메인과_다르면_400() {
+        given(companyRepository.existsByEmailDomain("shhdoc.com")).willReturn(false);
+        given(companyRepository.save(org.mockito.ArgumentMatchers.any(Company.class)))
+                .willAnswer(invocation -> invocation.getArgument(0));
+
+        assertThatThrownBy(() -> companyService.createCompany(
+                new CreateCompanyRequest("쉿닥", "shhdoc.com", "alice@gmail.com", "password123", "alice")))
+                .asInstanceOf(InstanceOfAssertFactories.type(ApiException.class))
+                .extracting(ApiException::getStatus)
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+
+        verify(userRepository, never()).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void 타사_도메인_이메일로_직원을_추가하면_400() {
+        given(companyRepository.findById(1L)).willReturn(Optional.of(new Company("쉿닥", "shhdoc.com")));
+
+        assertThatThrownBy(() -> companyService.addMember(
+                1L, new AddMemberRequest("bob@gmail.com", "password123", "bob")))
+                .asInstanceOf(InstanceOfAssertFactories.type(ApiException.class))
+                .extracting(ApiException::getStatus)
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+
+        verify(userRepository, never()).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void 대소문자만_다른_이메일도_같은_계정으로_본다() {
+        given(companyRepository.findById(1L)).willReturn(Optional.of(new Company("쉿닥", "shhdoc.com")));
+        given(userRepository.existsByEmail("bob@shhdoc.com")).willReturn(true);
+
+        assertThatThrownBy(() -> companyService.addMember(
+                1L, new AddMemberRequest("Bob@ShhDoc.com", "password123", "bob")))
+                .asInstanceOf(InstanceOfAssertFactories.type(ApiException.class))
+                .extracting(ApiException::getStatus)
+                .isEqualTo(HttpStatus.CONFLICT);
+    }
+
+    @Test
+    void 회사_도메인_이메일이면_직원이_추가된다() {
+        given(companyRepository.findById(1L)).willReturn(Optional.of(new Company("쉿닥", "shhdoc.com")));
+        given(userRepository.existsByEmail("bob@shhdoc.com")).willReturn(false);
+        given(passwordEncoder.encode(anyString())).willReturn("hashed");
+        given(userRepository.save(org.mockito.ArgumentMatchers.any(User.class)))
+                .willAnswer(invocation -> invocation.getArgument(0));
+
+        var response = companyService.addMember(1L, new AddMemberRequest("bob@shhdoc.com", "password123", "bob"));
+
+        assertThat(response.email()).isEqualTo("bob@shhdoc.com");
+    }
+}
