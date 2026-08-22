@@ -1,5 +1,7 @@
 package com.shhdoc.upstage.pipeline.parse;
 
+import com.shhdoc.upstage.pipeline.DocumentFile;
+
 /** Upstage Document Parse API 호출 모듈. 문서 구조(텍스트/표/레이아웃)를 인식합니다. */
 public interface DocumentParser {
 

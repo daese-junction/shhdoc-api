@@ -1,5 +1,6 @@
 package com.shhdoc.upstage.pipeline.parse;
 
+import com.shhdoc.upstage.pipeline.DocumentFile;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpHeaders;

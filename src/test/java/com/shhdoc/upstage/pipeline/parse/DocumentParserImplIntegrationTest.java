@@ -1,5 +1,6 @@
 package com.shhdoc.upstage.pipeline.parse;
 
+import com.shhdoc.upstage.pipeline.DocumentFile;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
@@ -15,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 실제 Upstage Document Parse API를 호출하는 통합 테스트.
  * {@code UPSTAGE_API_KEY} 환경변수가 없으면 전체 스킵된다 (CI/로컬 키 없는 환경 보호).
  *
- * <p>{@code src/test/resources/upstage.pipeline.parse/sample-payslip.{pdf,hwpx,xlsx}} 3개 파일이 필요하다.
+ * <p>{@code src/test/resources/upstage.pipeline/sample-payslip.{pdf,hwpx,xlsx}} 3개 파일이 필요하다.
  */
 @Slf4j
 @EnabledIfEnvironmentVariable(named = "UPSTAGE_API_KEY", matches = ".+")
@@ -52,7 +53,7 @@ class DocumentParserImplIntegrationTest {
     }
 
     private byte[] loadResource(String fileName) throws IOException {
-        String path = "upstage.pipeline.parse/" + fileName;
+        String path = "upstage.pipeline/" + fileName;
         try (InputStream in = getClass().getClassLoader().getResourceAsStream(path)) {
             if (in == null) {
                 throw new IllegalStateException("test resource not found: " + path);
