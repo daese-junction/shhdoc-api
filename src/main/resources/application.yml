@@ -4,6 +4,17 @@ jwt:
   access-validity-minutes: 30
   refresh-validity-days: 7
 
+storage:
+  # 앱 → MinIO (도커 네트워크 내부). 로컬 bootRun 은 localhost.
+  endpoint: ${STORAGE_ENDPOINT:http://localhost:9000}
+  # 서명 URL 에 들어갈 주소. 브라우저가 직접 여는 주소라 밖에서 접근 가능해야 한다.
+  # 서명에 호스트가 포함되므로 이 값이 틀리면 SignatureDoesNotMatch 가 난다.
+  public-endpoint: ${STORAGE_PUBLIC_ENDPOINT:http://localhost:9000}
+  bucket: ${STORAGE_BUCKET:shhdoc-attachments}
+  access-key: ${STORAGE_ACCESS_KEY:shhdoc}
+  secret-key: ${STORAGE_SECRET_KEY:shhdoc-local-secret}
+  presign-minutes: 15
+
 cors:
   # 배포된 프론트 + 로컬 개발 주소. 끝에 / 를 붙이지 말 것 (Origin 헤더와 문자열이 정확히 일치해야 함)
   allowed-origins: >-
