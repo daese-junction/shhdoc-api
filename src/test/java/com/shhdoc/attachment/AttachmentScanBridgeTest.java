@@ -56,7 +56,7 @@ class AttachmentScanBridgeTest {
         Attachment attachment = attachment();
         given(attachmentRepository.findByStorageKey("key-1")).willReturn(Optional.of(attachment));
 
-        bridge.applyDecision(new DecisionResponse(1,
+        bridge.applyDecision(new DecisionResponse(1L,
                 List.of(new AttachmentResult("key-1", ScanStatus.ALLOW, "공개 가능한 문서입니다."))));
 
         assertThat(attachment.getVerdict()).isEqualTo(Verdict.ALLOWED);
@@ -71,7 +71,7 @@ class AttachmentScanBridgeTest {
         Attachment attachment = attachment();
         given(attachmentRepository.findByStorageKey("key-1")).willReturn(Optional.of(attachment));
 
-        bridge.applyDecision(new DecisionResponse(1,
+        bridge.applyDecision(new DecisionResponse(1L,
                 List.of(new AttachmentResult("key-1", ScanStatus.REVIEW, "급여 정보가 포함되어 있습니다."))));
 
         assertThat(attachment.getVerdict()).isEqualTo(Verdict.BLOCKED);
@@ -83,7 +83,7 @@ class AttachmentScanBridgeTest {
     void 없는_첨부의_판정은_무시한다() {
         given(attachmentRepository.findByStorageKey("사라진키")).willReturn(Optional.empty());
 
-        bridge.applyDecision(new DecisionResponse(1,
+        bridge.applyDecision(new DecisionResponse(1L,
                 List.of(new AttachmentResult("사라진키", ScanStatus.ALLOW, "-"))));
     }
 

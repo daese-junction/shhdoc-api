@@ -48,19 +48,19 @@ class GatewayServiceTest {
     @Test
     void enqueue는_큐에_저장하고_MailReceivedEvent를_발행한다() {
         MailRequest request = newRequest(1L, 100L);
-        when(mailStore.save(request)).thenReturn(new Mail(7L, request));
+        when(mailStore.save(request)).thenReturn(new MailStore().save(request));
 
         gatewayService.enqueue(request);
 
         verify(mailStore).save(request);
         verify(eventPublisher).publishEvent(eventCaptor.capture());
         // 이벤트가 실어 나르는 건 메일 id 가 아니라 요청 id 다.
-        assertThat(eventCaptor.getValue()).isEqualTo(new MailReceivedEvent(7L));
+        assertThat(eventCaptor.getValue()).isEqualTo(new MailReceivedEvent(1L));
     }
 
     @Test
     void getStatus는_미완료건만_MailStatusResponse로_변환한다() {
-        Mail mail = new Mail(7L, newRequest(1L, 100L));
+        Mail mail = new MailStore().save(newRequest(1L, 100L));
         when(mailStore.findIncompleteByCompany(100L)).thenReturn(List.of(mail));
 
         List<MailStatusResponse> result = gatewayService.getStatus(100L);
