@@ -33,10 +33,6 @@ spring:
     hibernate:
       ddl-auto: update
     open-in-view: false
-  servlet:
-    multipart:
-      max-file-size: 20MB
-      max-request-size: 20MB
 
 upstage:
   api-key: ${UPSTAGE_API_KEY:}

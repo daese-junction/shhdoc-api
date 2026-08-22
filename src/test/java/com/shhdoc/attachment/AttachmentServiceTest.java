@@ -29,7 +29,14 @@ import org.springframework.http.HttpStatus;
 @ExtendWith(MockitoExtension.class)
 class AttachmentServiceTest {
 
+    private static final Long COMPANY_ID = 1L;
     private static final Company COMPANY = new Company("쉿닥", "shhdoc.com");
+
+    static {
+        // 판정 재사용이 회사 안에서만 일어나는지 보려면 id 가 있어야 한다.
+        // 생성자로는 못 넣는다 (JPA 가 채우는 필드).
+        org.springframework.test.util.ReflectionTestUtils.setField(COMPANY, "id", COMPANY_ID);
+    }
 
     @Mock
     private AttachmentRepository attachmentRepository;
@@ -85,7 +92,8 @@ class AttachmentServiceTest {
 
         Attachment previous = new Attachment(email, "이전.pdf", 100L, "key-1", "hash-abc");
         previous.recordVerdict(Verdict.BLOCKED, "내부 설계도로 판단됨");
-        given(attachmentRepository.findFirstByContentHashAndScanStatusOrderByIdAsc("hash-abc", ScanStatus.DONE))
+        given(attachmentRepository.findFirstByContentHashAndScanStatusAndEmailSenderCompanyIdOrderByIdAsc(
+                "hash-abc", ScanStatus.DONE, COMPANY_ID))
                 .willReturn(Optional.of(previous));
         given(attachmentRepository.save(any(Attachment.class))).willAnswer(call -> call.getArgument(0));
 
@@ -103,7 +111,8 @@ class AttachmentServiceTest {
         given(emailRepository.findByIdAndSenderId(1L, 1L)).willReturn(Optional.of(email));
         given(storage.requireUploaded("key-1")).willReturn(2048L);
         given(storage.sha256("key-1")).willReturn("hash-new");
-        given(attachmentRepository.findFirstByContentHashAndScanStatusOrderByIdAsc("hash-new", ScanStatus.DONE))
+        given(attachmentRepository.findFirstByContentHashAndScanStatusAndEmailSenderCompanyIdOrderByIdAsc(
+                "hash-new", ScanStatus.DONE, COMPANY_ID))
                 .willReturn(Optional.empty());
         given(attachmentRepository.save(any(Attachment.class))).willAnswer(call -> call.getArgument(0));
 

@@ -12,6 +12,7 @@ import com.shhdoc.upstage.dto.ScanStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
 import java.util.List;
@@ -32,7 +33,13 @@ public class PolicyServiceImpl implements PolicyService {
     private final PolicyRuleRepository ruleRepository;
     private final DocumentTypeRepository documentTypeRepository;
 
+    /**
+     * 트랜잭션을 연다. 호출자({@code MailProcessor.handle})가 {@code @Async} 워커에서
+     * 돌아 세션이 없고, {@code open-in-view: false} 라 열려 있지도 않다. 그냥 조회하면
+     * {@code toRules} 에서 지연 프록시(sensitiveType/documentType)를 건드리다 터진다.
+     */
     @Override
+    @Transactional(readOnly = true)
     public Policy findByCompany(Long companyId) {
         Map<Long, List<String>> documentTypeCodesByCategoryId = documentTypeRepository
                 .findByCompanyIdOrderByIdAsc(companyId).stream()

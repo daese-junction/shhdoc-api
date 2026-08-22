@@ -95,7 +95,7 @@ public class MailProcessor {
 
     /** 검사하지 못한 첨부는 통과가 아니라 보류다. 못 본 파일을 그냥 내보내면 안 된다. */
     private static AttachmentResult unchecked(Attachment attachment) {
-        return new AttachmentResult(attachment.storageKey(), ScanStatus.REVIEW,
+        return new AttachmentResult(attachment.storageKey(), ScanStatus.FAILED,
                 "자동 검사를 완료하지 못했습니다. 관리자 확인이 필요합니다.");
     }
 

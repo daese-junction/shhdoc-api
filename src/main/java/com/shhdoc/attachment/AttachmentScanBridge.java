@@ -49,9 +49,17 @@ public class AttachmentScanBridge {
     public void applyDecision(DecisionResponse response) {
         for (AttachmentResult result : response.attachments()) {
             attachmentRepository.findByStorageKey(result.storageKey()).ifPresentOrElse(
-                    attachment -> attachment.recordVerdict(toVerdict(result.status()), result.reason()),
+                    attachment -> apply(attachment, result),
                     () -> log.warn("판정이 왔지만 첨부를 찾지 못함: storageKey={}", result.storageKey()));
         }
+    }
+
+    private static void apply(Attachment attachment, AttachmentResult result) {
+        if (result.status() == ScanStatus.FAILED) {
+            attachment.recordFailure(result.reason());
+            return;
+        }
+        attachment.recordVerdict(toVerdict(result.status()), result.reason());
     }
 
     private static MailRequest toMailRequest(Attachment attachment) {

@@ -78,6 +78,23 @@ class AttachmentScanBridgeTest {
         assertThat(attachment.getReason()).isEqualTo("급여 정보가 포함되어 있습니다.");
     }
 
+    /**
+     * 검사 실패는 차단이 아니다. DONE/BLOCKED 로 굳으면 해시 재사용이 그 실패를 물려받아
+     * 같은 파일이 영원히 차단되고, 재검사 대상에서도 빠진다.
+     */
+    @Test
+    void 검사_실패는_FAILED_로_기록되고_판정은_비워둔다() {
+        Attachment attachment = attachment();
+        given(attachmentRepository.findByStorageKey("key-1")).willReturn(Optional.of(attachment));
+
+        bridge.applyDecision(new DecisionResponse(1L, List.of(new AttachmentResult(
+                "key-1", ScanStatus.FAILED, "자동 검사를 완료하지 못했습니다. 관리자 확인이 필요합니다."))));
+
+        assertThat(attachment.getScanStatus()).isEqualTo(com.shhdoc.attachment.ScanStatus.FAILED);
+        assertThat(attachment.getVerdict()).isNull();
+        assertThat(attachment.getReason()).isEqualTo("자동 검사를 완료하지 못했습니다. 관리자 확인이 필요합니다.");
+    }
+
     /** 첨부가 지워진 뒤에 판정이 돌아올 수 있다. 그때 터지면 같은 응답의 나머지 첨부까지 날아간다. */
     @Test
     void 없는_첨부의_판정은_무시한다() {
