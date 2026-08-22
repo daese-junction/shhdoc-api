@@ -38,6 +38,7 @@ public class AttachmentScanBridge {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
     @TransactionalEventListener
+    public void requestScan(AttachmentRegisteredEvent event) {
         attachmentRepository.findById(event.attachmentId())
                 .ifPresent(attachment -> gateway.enqueue(toMailRequest(attachment)));
     }
