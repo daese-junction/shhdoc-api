@@ -14,7 +14,7 @@ import java.util.List;
  * <p>호출 흐름:
  * <ol>
  *   <li>메일 제공사 모듈이 {@link #enqueue}로 첨부파일 있는 메일을 등록 (비동기 처리 시작)</li>
- *   <li>진행 상황이 궁금하면 {@link #getStatus}로 폴링 ?? 조회??</li>
+ *   <li>진행 상황이 궁금하면 {@link #getStatus}로 폴링 조회</li>
  *   <li>처리가 끝나면 ShhDoc이 {@link #publishDecision}으로 결과를 메일 제공사 모듈에 통보</li>
  * </ol>
  */

@@ -60,4 +60,18 @@ class MailStoreTest {
 
         assertThat(store.findIncompleteByCompany(100L)).isEmpty();
     }
+
+    @Test
+    void remove하면_더는_get으로_조회되지_않는다() {
+        Mail mail = store.save(newRequest(1L, 100L));
+
+        store.remove(mail.requestId());
+
+        assertThatThrownBy(() -> store.get(mail.requestId())).isInstanceOf(NoSuchElementException.class);
+    }
+
+    @Test
+    void 없는_requestId를_remove해도_에러_안난다() {
+        store.remove(999L);
+    }
 }

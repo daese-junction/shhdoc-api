@@ -12,10 +12,20 @@ import org.springframework.web.client.RestClient;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Semaphore;
 
-/** Upstage Information Extract API 실제 연동. 문서유형과 무관한 고정 범용 민감정보 스키마를 쓴다. */
+/**
+ * Upstage Information Extract API 실제 연동. 문서유형과 무관한 고정 범용 민감정보 스키마를 쓴다.
+ *
+ * <p>동기 Information Extract도 Document Parse와 동일하게 RPS 한도가 1이라
+ * {@code extractSemaphore}로 동시 호출 1개로 제한한다. 세마포어는 "동시에 1개만"만
+ * 보장하고 "초당 1개"까지 강제하진 않으므로, 실제로 429가 자주 발생하면 시간기반
+ * rate limiter(Resilience4j 등)로 교체가 필요하다.
+ */
 @Component
 public class InformationExtractorImpl implements InformationExtractor {
+
+    private final Semaphore extractSemaphore = new Semaphore(1);
 
     private static final String SCHEMA_JSON = """
             {
@@ -70,12 +80,18 @@ public class InformationExtractorImpl implements InformationExtractor {
                         new ExtractRequest.JsonSchema("shhdoc_sensitive_info", schema))
         );
 
-        ExtractResponse response = restClient.post()
-                .uri(endpoint)
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
-                .body(request)
-                .retrieve()
-                .body(ExtractResponse.class);
+        ExtractResponse response;
+        extractSemaphore.acquireUninterruptibly();
+        try {
+            response = restClient.post()
+                    .uri(endpoint)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
+                    .body(request)
+                    .retrieve()
+                    .body(ExtractResponse.class);
+        } finally {
+            extractSemaphore.release();
+        }
 
         return toExtractionResult(response);
     }

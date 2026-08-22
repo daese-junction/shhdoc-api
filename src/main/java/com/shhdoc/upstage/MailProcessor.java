@@ -70,8 +70,8 @@ public class MailProcessor {
         // 실패해도 결과는 반드시 발행한다. 여기서 빠져나가면 첨부가 PENDING 에 영구히 남아
         // 화면은 "검사 중"을 무한히 돌고 발송은 계속 막힌다.
         mail.markDone();
-        gateway.publishDecision(new DecisionResponse(mail.mailId(), attachmentResults));
         mailStore.remove(mail.requestId());
+        gateway.publishDecision(new DecisionResponse(mail.mailId(), attachmentResults));
     }
 
     /** 검사하지 못한 첨부는 통과가 아니라 보류다. 못 본 파일을 그냥 내보내면 안 된다. */

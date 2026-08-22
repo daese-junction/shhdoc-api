@@ -43,7 +43,11 @@ public class MailStore {
                 .toList();
     }
 
-    /** 끝난 요청은 들고 있을 이유가 없다. 안 지우면 인메모리 맵이 계속 커진다. */
+    /**
+     * 저장소에서 요청을 제거한다. DONE 처리되고 결과까지 발행된 요청은 더 이상
+     * 아무도 조회하지 않으므로({@link #findIncompleteByCompany}가 애초에 DONE을
+     * 걸러냄), 계속 들고 있으면 메모리만 계속 늘어난다 — 완료 직후 바로 지운다.
+     */
     public void remove(long requestId) {
         mails.remove(requestId);
     }

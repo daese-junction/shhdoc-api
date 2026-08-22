@@ -30,6 +30,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -90,6 +91,7 @@ class MailProcessorTest {
         assertThat(mail.status()).isEqualTo(QueueStatus.DONE);
         verify(gateway).publishDecision(new DecisionResponse(1L,
                 List.of(new com.shhdoc.upstage.dto.AttachmentResult("storage-key-1", ScanStatus.REVIEW, "사유"))));
+        assertThatThrownBy(() -> mailStore.get(1)).isInstanceOf(java.util.NoSuchElementException.class);
     }
 
     /**
