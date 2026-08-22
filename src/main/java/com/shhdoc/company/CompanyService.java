@@ -33,7 +33,8 @@ public class CompanyService {
             throw new ApiException(HttpStatus.CONFLICT, "이미 등록된 회사 도메인입니다.");
         }
         Company company = companyRepository.save(new Company(request.companyName(), emailDomain));
-        User admin = createUser(company, request.email(), request.password(), request.name(), Role.ADMIN);
+        User admin = createUser(company, request.email(), request.password(), request.name(),
+                Role.ADMIN, request.department(), request.position());
         return new CreateCompanyResponse(CompanyResponse.from(company), UserResponse.from(admin));
     }
 
@@ -42,12 +43,13 @@ public class CompanyService {
     public UserResponse addMember(Long companyId, AddMemberRequest request) {
         Company company = companyRepository.findById(companyId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "회사를 찾을 수 없습니다."));
-        return UserResponse.from(
-                createUser(company, request.email(), request.password(), request.name(), Role.USER));
+        return UserResponse.from(createUser(company, request.email(), request.password(),
+                request.name(), Role.USER, request.department(), request.position()));
     }
 
     /** 계정 생성은 대표자든 직원이든 전부 여기를 지난다. 도메인 검증이 갈라지지 않도록. */
-    private User createUser(Company company, String email, String rawPassword, String name, Role role) {
+    private User createUser(Company company, String email, String rawPassword, String name, Role role,
+                            String department, String position) {
         String normalizedEmail = EmailAddresses.normalize(email);
         if (!EmailAddresses.domainOf(normalizedEmail).equals(company.getEmailDomain())) {
             throw new ApiException(HttpStatus.BAD_REQUEST,
@@ -56,8 +58,9 @@ public class CompanyService {
         if (userRepository.existsByEmail(normalizedEmail)) {
             throw new ApiException(HttpStatus.CONFLICT, "이미 등록된 이메일입니다.");
         }
-        return userRepository.save(
-                new User(company, normalizedEmail, passwordEncoder.encode(rawPassword), name, role));
+        User user = new User(company, normalizedEmail, passwordEncoder.encode(rawPassword), name, role);
+        user.updateProfile(department, position);
+        return userRepository.save(user);
     }
 
     /** "@Shhdoc.com " 처럼 들어와도 "shhdoc.com" 하나로 모은다. */

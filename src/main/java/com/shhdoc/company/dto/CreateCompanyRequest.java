@@ -22,5 +22,9 @@ public record CreateCompanyRequest(
         @NotBlank @Size(min = 8, max = 64) String password,
 
         @Schema(description = "대표자 이름", example = "김대표")
-        @NotBlank String name) {
+        @NotBlank String name,
+        @Schema(description = "부서 (선택)", example = "경영지원")
+        @Size(max = 50) String department,
+        @Schema(description = "직급 (선택)", example = "대표")
+        @Size(max = 50) String position) {
 }

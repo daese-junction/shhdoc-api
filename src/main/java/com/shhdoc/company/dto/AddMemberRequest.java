@@ -14,5 +14,9 @@ public record AddMemberRequest(
         @NotBlank @Size(min = 8, max = 64) String password,
 
         @Schema(description = "직원 이름", example = "박직원")
-        @NotBlank String name) {
+        @NotBlank String name,
+        @Schema(description = "부서 (선택)", example = "영업팀")
+        @Size(max = 50) String department,
+        @Schema(description = "직급 (선택)", example = "대리")
+        @Size(max = 50) String position) {
 }
