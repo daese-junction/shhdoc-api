@@ -16,12 +16,17 @@ import com.shhdoc.upstage.pipeline.extract.SensitiveInfoCategory;
 import com.shhdoc.upstage.pipeline.parse.DocumentParser;
 import com.shhdoc.upstage.pipeline.parse.ParsedDocument;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 
 /** Parse/Classify/Extract를 병렬 호출해 하나의 {@link DocumentAnalysisResult}로 합칩니다. */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class DocumentAnalyzerImpl implements DocumentAnalyzer {
@@ -33,20 +38,32 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
     private final SensitiveInfoTypeRepository sensitiveInfoTypeRepository;
 
     @Override
-    public DocumentAnalysisResult analyze(DocumentFile file, Long companyId) {
-        List<DocumentCategory> categories = categoriesFor(companyId);
-        List<SensitiveInfoCategory> sensitiveTypes = sensitiveTypesFor(companyId);
+    public CompanyVocabulary loadVocabulary(Long companyId) {
+        return new CompanyVocabulary(categoriesFor(companyId), sensitiveTypesFor(companyId));
+    }
 
+    @Override
+    public DocumentAnalysisResult analyze(DocumentFile file, CompanyVocabulary vocabulary) {
+        log.info("[UNDERSTAND] file={} 시작 (Parse/Classify/Extract 병렬 호출)", file.fileName());
+        long startedAt = System.currentTimeMillis();
+
+        // supplyAsync는 공용 ForkJoinPool 스레드에서 도는데 MDC는 스레드로컬이라
+        // 이 스레드(mailId 포함)의 MDC가 자동으로 안 넘어간다 — 넘겨주지 않으면
+        // PARSE/CLASSIFY/EXTRACT 로그에 mailId가 안 찍힌다.
+        Map<String, String> mdcContext = MDC.getCopyOfContextMap();
         CompletableFuture<ParsedDocument> parseFuture =
-                CompletableFuture.supplyAsync(() -> documentParser.parse(file));
+                CompletableFuture.supplyAsync(withMdc(mdcContext, () -> documentParser.parse(file)));
         CompletableFuture<ClassificationResult> classifyFuture =
-                CompletableFuture.supplyAsync(() -> documentClassifier.classify(file, categories));
+                CompletableFuture.supplyAsync(withMdc(mdcContext, () -> documentClassifier.classify(file, vocabulary.categories())));
         CompletableFuture<ExtractionResult> extractFuture =
-                CompletableFuture.supplyAsync(() -> informationExtractor.extract(file, sensitiveTypes));
+                CompletableFuture.supplyAsync(withMdc(mdcContext, () -> informationExtractor.extract(file, vocabulary.sensitiveTypes())));
 
         CompletableFuture.allOf(parseFuture, classifyFuture, extractFuture).join();
 
-        return new DocumentAnalysisResult(parseFuture.join(), classifyFuture.join(), extractFuture.join());
+        DocumentAnalysisResult result =
+                new DocumentAnalysisResult(parseFuture.join(), classifyFuture.join(), extractFuture.join());
+        log.info("[UNDERSTAND] file={} 완료 {}ms", file.fileName(), System.currentTimeMillis() - startedAt);
+        return result;
     }
 
     /**
@@ -73,5 +90,29 @@ public class DocumentAnalyzerImpl implements DocumentAnalyzer {
         return sensitiveInfoTypes.stream()
                 .map(type -> new SensitiveInfoCategory(type.getCode(), type.getName() + " - " + type.getDescription()))
                 .toList();
+    }
+
+    /**
+     * 호출측 스레드의 MDC(mailId 등)를 supplyAsync가 실행되는 공용 풀 스레드에 복원한다.
+     * 그 스레드가 이전에 다른 요청 처리로 MDC를 남겨뒀을 수도 있어서, 끝나면 원래 값으로
+     * 되돌리거나(이 스레드가 그 전에 갖고 있던 컨텍스트) 없으면 지운다 — 공용 풀이라
+     * 남겨두면 다음 무관한 작업에 새어나간다.
+     */
+    private static <T> Supplier<T> withMdc(Map<String, String> mdcContext, Supplier<T> supplier) {
+        return () -> {
+            Map<String, String> previous = MDC.getCopyOfContextMap();
+            if (mdcContext != null) {
+                MDC.setContextMap(mdcContext);
+            }
+            try {
+                return supplier.get();
+            } finally {
+                if (previous != null) {
+                    MDC.setContextMap(previous);
+                } else {
+                    MDC.clear();
+                }
+            }
+        };
     }
 }

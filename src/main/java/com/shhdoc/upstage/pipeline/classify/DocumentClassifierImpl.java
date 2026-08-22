@@ -2,6 +2,7 @@ package com.shhdoc.upstage.pipeline.classify;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.shhdoc.upstage.pipeline.DocumentFile;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
@@ -10,11 +11,20 @@ import org.springframework.web.client.RestClient;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Semaphore;
 
-/** Upstage Document Classification API 실제 연동. */
+/**
+ * Upstage Document Classification API 실제 연동.
+ *
+ * <p>동기 Document Classification도 Parse/Extract와 동일한 RPS=1 한도라
+ * {@code classifySemaphore}로 동시 호출 1개로 제한한다 (Extract에서 429가
+ * 실제로 발생해 세마포어를 추가했던 것과 같은 이유).
+ */
+@Slf4j
 @Component
 public class DocumentClassifierImpl implements DocumentClassifier {
 
+    private final Semaphore classifySemaphore = new Semaphore(1);
     private final RestClient restClient;
     private final String apiKey;
     private final String endpoint;
@@ -40,14 +50,24 @@ public class DocumentClassifierImpl implements DocumentClassifier {
                                 new ClassifyRequest.Schema("string", toOneOf(categories))))
         );
 
-        ClassifyResponse response = restClient.post()
-                .uri(endpoint)
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
-                .body(request)
-                .retrieve()
-                .body(ClassifyResponse.class);
+        ClassifyResponse response;
+        long startedAt = System.currentTimeMillis();
+        classifySemaphore.acquireUninterruptibly();
+        try {
+            response = restClient.post()
+                    .uri(endpoint)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
+                    .body(request)
+                    .retrieve()
+                    .body(ClassifyResponse.class);
+        } finally {
+            classifySemaphore.release();
+        }
 
-        return toClassificationResult(response);
+        ClassificationResult result = toClassificationResult(response);
+        log.info("[CLASSIFY] file={} category={} confidence={} {}ms",
+                file.fileName(), result.category(), result.confidenceScore(), System.currentTimeMillis() - startedAt);
+        return result;
     }
 
     private List<ClassifyRequest.OneOf> toOneOf(List<DocumentCategory> categories) {

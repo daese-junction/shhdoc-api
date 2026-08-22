@@ -1,12 +1,14 @@
 package com.shhdoc.upstage.policy;
 
 import com.shhdoc.policy.entity.Classification;
+import com.shhdoc.policy.entity.DocumentCategory;
 import com.shhdoc.policy.entity.DocumentType;
 import com.shhdoc.policy.entity.PolicyAction;
 import com.shhdoc.policy.entity.PolicyRule;
 import com.shhdoc.policy.entity.RecipientScope;
 import com.shhdoc.policy.entity.SendDirection;
 import com.shhdoc.policy.entity.SensitiveInfoType;
+import com.shhdoc.policy.repository.DocumentTypeRepository;
 import com.shhdoc.policy.repository.PolicyRuleRepository;
 import com.shhdoc.upstage.dto.ScanStatus;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
@@ -26,23 +29,45 @@ class PolicyServiceImplTest {
 
     @Mock
     private PolicyRuleRepository ruleRepository;
+    @Mock
+    private DocumentTypeRepository documentTypeRepository;
 
     private PolicyServiceImpl policyService;
 
     @BeforeEach
     void setUp() {
-        policyService = new PolicyServiceImpl(ruleRepository);
+        policyService = new PolicyServiceImpl(ruleRepository, documentTypeRepository);
+        lenient().when(documentTypeRepository.findByCompanyIdOrderByIdAsc(anyLong())).thenReturn(List.of());
     }
 
     private PolicyRule ruleMock(boolean enabled, DocumentType documentType, SendDirection direction,
                                  RecipientScope scope, PolicyAction action) {
+        return ruleMock(enabled, null, documentType, direction, scope, action);
+    }
+
+    private PolicyRule ruleMock(boolean enabled, DocumentCategory category, DocumentType documentType,
+                                 SendDirection direction, RecipientScope scope, PolicyAction action) {
         PolicyRule rule = org.mockito.Mockito.mock(PolicyRule.class);
         lenient().when(rule.isEnabled()).thenReturn(enabled);
+        lenient().when(rule.getCategory()).thenReturn(category);
         lenient().when(rule.getDocumentType()).thenReturn(documentType);
         lenient().when(rule.getDirection()).thenReturn(direction);
         lenient().when(rule.getRecipientScope()).thenReturn(scope);
         lenient().when(rule.getAction()).thenReturn(action);
         return rule;
+    }
+
+    private DocumentType documentTypeMock(DocumentCategory category, String code) {
+        DocumentType documentType = org.mockito.Mockito.mock(DocumentType.class);
+        lenient().when(documentType.getCategory()).thenReturn(category);
+        lenient().when(documentType.getCode()).thenReturn(code);
+        return documentType;
+    }
+
+    private DocumentCategory categoryMock(Long id) {
+        DocumentCategory category = org.mockito.Mockito.mock(DocumentCategory.class);
+        lenient().when(category.getId()).thenReturn(id);
+        return category;
     }
 
     @Test
@@ -174,5 +199,56 @@ class PolicyServiceImplTest {
 
         assertThat(converted.sensitiveType()).isNull();
         assertThat(converted.classification()).isNull();
+    }
+
+    @Test
+    void category만_있으면_그_대분류에_속한_문서유형_코드_전부로_펼쳐진다() {
+        DocumentCategory finance = categoryMock(10L);
+        DocumentCategory hr = categoryMock(20L);
+        DocumentType payroll = documentTypeMock(finance, "PAYROLL");
+        DocumentType budget = documentTypeMock(finance, "BUDGET");
+        DocumentType contract = documentTypeMock(hr, "CONTRACT");
+        when(documentTypeRepository.findByCompanyIdOrderByIdAsc(1L)).thenReturn(List.of(payroll, budget, contract));
+        PolicyRule rule = ruleMock(true, finance, null, SendDirection.ALL, null, PolicyAction.REVIEW);
+        when(ruleRepository.findByCompanyIdOrderByIdAsc(1L)).thenReturn(List.of(rule));
+
+        List<Rule> converted = policyService.findByCompany(1L).rules();
+
+        assertThat(converted).extracting(Rule::category).containsExactlyInAnyOrder("PAYROLL", "BUDGET");
+    }
+
+    @Test
+    void documentType이_있으면_category보다_우선한다() {
+        DocumentCategory finance = categoryMock(10L);
+        DocumentType payroll = documentTypeMock(finance, "PAYROLL");
+        DocumentType budget = documentTypeMock(finance, "BUDGET");
+        when(documentTypeRepository.findByCompanyIdOrderByIdAsc(1L)).thenReturn(List.of(payroll, budget));
+        PolicyRule rule = ruleMock(true, finance, payroll, SendDirection.ALL, null, PolicyAction.ALLOW);
+        when(ruleRepository.findByCompanyIdOrderByIdAsc(1L)).thenReturn(List.of(rule));
+
+        List<Rule> converted = policyService.findByCompany(1L).rules();
+
+        assertThat(converted).extracting(Rule::category).containsExactly("PAYROLL");
+    }
+
+    @Test
+    void category에_속한_문서유형이_하나도_없으면_룰이_사라진다() {
+        DocumentCategory empty = categoryMock(10L);
+        PolicyRule rule = ruleMock(true, empty, null, SendDirection.ALL, null, PolicyAction.ALLOW);
+        when(ruleRepository.findByCompanyIdOrderByIdAsc(1L)).thenReturn(List.of(rule));
+
+        List<Rule> converted = policyService.findByCompany(1L).rules();
+
+        assertThat(converted).isEmpty();
+    }
+
+    @Test
+    void category도_documentType도_없으면_문서유형_무관이다() {
+        PolicyRule rule = ruleMock(true, null, null, SendDirection.ALL, null, PolicyAction.ALLOW);
+        when(ruleRepository.findByCompanyIdOrderByIdAsc(1L)).thenReturn(List.of(rule));
+
+        Rule converted = policyService.findByCompany(1L).rules().get(0);
+
+        assertThat(converted.category()).isNull();
     }
 }

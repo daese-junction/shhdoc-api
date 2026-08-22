@@ -6,8 +6,10 @@ import com.shhdoc.upstage.pipeline.generate.Generator;
 import com.shhdoc.upstage.policy.Policy;
 import com.shhdoc.upstage.policy.Rule;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class DecisionEngineImpl implements DecisionEngine {
@@ -23,6 +25,9 @@ public class DecisionEngineImpl implements DecisionEngine {
                 .orElse(ScanStatus.REVIEW);
 
         String reason = generator.generate(buildReasonPrompt(context, status));
+        log.info("[DECISION] category={} recipientType={} sensitiveTypes={} classification={} -> status={}",
+                context.category(), context.recipientType(), context.sensitiveTypeCodes(),
+                context.classification(), status);
         return new Verdict(status, reason);
     }
 

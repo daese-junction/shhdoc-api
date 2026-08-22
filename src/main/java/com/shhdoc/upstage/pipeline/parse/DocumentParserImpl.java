@@ -1,6 +1,7 @@
 package com.shhdoc.upstage.pipeline.parse;
 
 import com.shhdoc.upstage.pipeline.DocumentFile;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpHeaders;
@@ -24,6 +25,7 @@ import java.util.concurrent.Semaphore;
  * 세마포어는 "동시에 1개만"만 보장하고 "초당 1개"까지 강제하진 않으므로, 실제로 429가
  * 자주 발생하면 시간기반 rate limiter(Resilience4j 등)로 교체가 필요하다.
  */
+@Slf4j
 @Component
 public class DocumentParserImpl implements DocumentParser {
 
@@ -53,6 +55,7 @@ public class DocumentParserImpl implements DocumentParser {
         body.add("output_formats", "['html', 'markdown', 'text']");
 
         UpstageParseResponse response;
+        long startedAt = System.currentTimeMillis();
         parseSemaphore.acquireUninterruptibly();
         try {
             response = restClient.post()
@@ -66,7 +69,9 @@ public class DocumentParserImpl implements DocumentParser {
             parseSemaphore.release();
         }
 
-        return toParsedDocument(response);
+        ParsedDocument parsed = toParsedDocument(response);
+        log.info("[PARSE] file={} pages={} {}ms", file.fileName(), parsed.pageCount(), System.currentTimeMillis() - startedAt);
+        return parsed;
     }
 
     private ParsedDocument toParsedDocument(UpstageParseResponse response) {
