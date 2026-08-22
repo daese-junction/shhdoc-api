@@ -13,4 +13,10 @@ public interface AttachmentRepository extends JpaRepository<Attachment, Long> {
 
     /** 발송 판정용. 첨부 담당 모듈이 결과를 채우면 이 질문 하나로 보류 여부가 정해진다. */
     boolean existsByEmailIdAndVerdict(Long emailId, Verdict verdict);
+
+    /** 검사가 끝나지 않은 첨부가 남았는지. 판정 전에 나가는 것을 막는다. */
+    boolean existsByEmailIdAndScanStatus(Long emailId, ScanStatus scanStatus);
+
+    /** 판정 결과는 storageKey 로 돌아온다. 컬럼에 unique 가 걸려 있어 한 건만 나온다. */
+    Optional<Attachment> findByStorageKey(String storageKey);
 }

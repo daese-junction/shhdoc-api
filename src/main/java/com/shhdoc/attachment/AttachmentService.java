@@ -12,6 +12,7 @@ import com.shhdoc.storage.AttachmentStorage;
 import com.shhdoc.user.Role;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +28,7 @@ public class AttachmentService {
     private final AttachmentRepository attachmentRepository;
     private final EmailRepository emailRepository;
     private final AttachmentStorage storage;
+    private final ApplicationEventPublisher eventPublisher;
 
     /** 1단계: 프론트가 파일을 직접 올릴 URL 을 발급한다. 아직 DB 에 남기지 않는다. */
     public UploadUrlResponse createUploadUrl(Long userId, Long emailId, UploadUrlRequest request) {
@@ -48,7 +50,12 @@ public class AttachmentService {
         attachmentRepository.findFirstByContentHashAndScanStatusOrderByIdAsc(hash, ScanStatus.DONE)
                 .ifPresent(attachment::reuseVerdictOf);
 
-        return AttachmentResponse.from(attachmentRepository.save(attachment));
+        Attachment saved = attachmentRepository.save(attachment);
+        // 판정을 물려받았으면 다시 분석할 이유가 없다.
+        if (saved.getScanStatus() == ScanStatus.PENDING) {
+            eventPublisher.publishEvent(new AttachmentRegisteredEvent(saved.getId()));
+        }
+        return AttachmentResponse.from(saved);
     }
 
     public List<AttachmentResponse> list(Long userId, Long companyId, Role role, Long emailId) {
