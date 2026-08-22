@@ -26,6 +26,13 @@ public class PendingScanRecovery implements ApplicationRunner {
             return;
         }
         log.info("검사가 끝나지 않은 첨부 {}건을 다시 요청한다", pending.size());
-        pending.forEach(attachment -> bridge.requestScan(new AttachmentRegisteredEvent(attachment.getId())));
+        for (Attachment attachment : pending) {
+            // 한 건이 터져도 기동은 계속돼야 한다. 여기서 예외가 나가면 앱이 아예 뜨지 않는다.
+            try {
+                bridge.requestScan(new AttachmentRegisteredEvent(attachment.getId()));
+            } catch (RuntimeException e) {
+                log.error("첨부 {} 재요청 실패 — 건너뛴다", attachment.getId(), e);
+            }
+        }
     }
 }

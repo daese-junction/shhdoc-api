@@ -1,7 +1,9 @@
 package com.shhdoc.attachment;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 import static org.springframework.http.HttpHeaders.AUTHORIZATION;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -12,9 +14,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.jayway.jsonpath.JsonPath;
 import com.shhdoc.TestcontainersConfiguration;
 import com.shhdoc.storage.AttachmentStorage;
+import com.shhdoc.upstage.Gateway;
+import com.shhdoc.upstage.dto.MailRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -38,6 +43,9 @@ class AttachmentIntegrationTest {
 
     @MockitoBean
     private AttachmentStorage storage;
+
+    @MockitoBean
+    private Gateway gateway;
 
     private String adminToken;
     private String memberToken;
@@ -103,6 +111,30 @@ class AttachmentIntegrationTest {
                         .header(AUTHORIZATION, "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.downloadUrl").value("http://storage.test/get"));
+    }
+
+    /**
+     * 등록이 201 을 주는 것만으로는 부족하다. 검사 요청은 커밋 이후 리스너에서 나가는데,
+     * 거기서 터진 예외는 스프링이 삼켜서 응답에 아무 흔적이 남지 않는다.
+     * 실제로 enqueue 까지 갔는지 확인해야 조용히 검사가 누락되는 걸 잡는다.
+     */
+    @Test
+    void 첨부를_등록하면_검사가_요청된다() throws Exception {
+        Long mailId = createDraft();
+
+        mockMvc.perform(post("/emails/{id}/attachments", mailId)
+                        .header(AUTHORIZATION, "Bearer " + memberToken)
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"storageKey":"key-1","filename":"계약서.pdf"}
+                                """))
+                .andExpect(status().isCreated());
+
+        ArgumentCaptor<MailRequest> captor = ArgumentCaptor.forClass(MailRequest.class);
+        verify(gateway).enqueue(captor.capture());
+        assertThat(captor.getValue().senderAddress()).isEqualTo("bob@attach-test.com");
+        assertThat(captor.getValue().attachments()).singleElement()
+                .satisfies(a -> assertThat(a.storageKey()).isEqualTo("key-1"));
     }
 
     @Test

@@ -11,6 +11,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionalEventListener;
 
@@ -28,9 +29,15 @@ public class AttachmentScanBridge {
     private final AttachmentRepository attachmentRepository;
     private final Gateway gateway;
 
-    /** 커밋 이후에 검사를 요청한다. 첨부 한 건이 요청 하나다. */
+    /**
+     * 커밋 이후에 검사를 요청한다. 첨부 한 건이 요청 하나다.
+     *
+     * <p>트랜잭션을 새로 연다. 커밋 이후에 도는 리스너라 세션이 이미 닫혀 있어서,
+     * 그냥 조회하면 detached 엔티티가 나오고 email.getSender() 에서 터진다.
+     * 기동 시 보정({@link PendingScanRecovery})도 트랜잭션 밖에서 부르므로 여기서 열어야 한다.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
     @TransactionalEventListener
-    public void requestScan(AttachmentRegisteredEvent event) {
         attachmentRepository.findById(event.attachmentId())
                 .ifPresent(attachment -> gateway.enqueue(toMailRequest(attachment)));
     }
