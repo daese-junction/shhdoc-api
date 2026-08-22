@@ -1,5 +1,8 @@
 package com.shhdoc.email;
 
+import com.shhdoc.attachment.AttachmentRepository;
+import com.shhdoc.attachment.ScanStatus;
+import com.shhdoc.attachment.Verdict;
 import com.shhdoc.common.ApiException;
 import com.shhdoc.email.dto.CreateEmailRequest;
 import com.shhdoc.email.dto.EmailDetailResponse;
@@ -7,12 +10,10 @@ import com.shhdoc.email.dto.EmailResponse;
 import com.shhdoc.email.dto.RecipientDto;
 import com.shhdoc.email.dto.ReviewRequest;
 import com.shhdoc.email.dto.UpdateEmailRequest;
-import com.shhdoc.upstage.dto.DecisionResponse;
 import com.shhdoc.user.User;
 import com.shhdoc.user.UserRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.event.EventListener;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +27,7 @@ public class EmailService {
 
     private final EmailRepository emailRepository;
     private final UserRepository userRepository;
+    private final AttachmentRepository attachmentRepository;
 
     @Transactional
     public EmailDetailResponse createDraft(Long userId, CreateEmailRequest request) {
@@ -71,9 +73,13 @@ public class EmailService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "수신자를 한 명 이상 지정해주세요.");
         }
 
-        // ponytail: 1단계는 사외 발송이면 무조건 보류. 첨부 판정이 붙으면
-        // "이 메일에 REVIEW 판정 첨부가 있는가"로 조건만 갈아끼운다.
-        if (email.hasExternalRecipient()) {
+        if (attachmentRepository.existsByEmailIdAndScanStatus(emailId, ScanStatus.PENDING)) {
+            throw new ApiException(HttpStatus.CONFLICT, "첨부파일을 검사하는 중입니다. 잠시 후 다시 시도해주세요.");
+        }
+
+        // 사외 발송은 그 자체로 보류 대상이고, 차단 판정이 난 첨부가 있으면 사내라도 보류한다.
+        if (attachmentRepository.existsByEmailIdAndVerdict(emailId, Verdict.BLOCKED)
+                || email.hasExternalRecipient()) {
             email.markBlocked();
         } else {
             email.markSent();

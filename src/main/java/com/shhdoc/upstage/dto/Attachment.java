@@ -10,7 +10,7 @@ package com.shhdoc.upstage.dto;
  */
 public record Attachment(
         String fileName,
-        Integer size,
+        Long size,
         String storageKey,
         String hash
 ) {

@@ -40,7 +40,7 @@ public interface Gateway {
      * @param companyId 조회 대상 기업 식별자
      * @return 미완료 메일들의 처리 상태 목록. 미완료 건이 없으면 빈 리스트를 반환합니다.
      */
-    List<MailStatusResponse> getStatus(Integer companyId);
+    List<MailStatusResponse> getStatus(Long companyId);
 
     /**
      * ShhDoc이 처리를 완료한 메일의 판단 결과(첨부파일별 ALLOW/REVIEW)를

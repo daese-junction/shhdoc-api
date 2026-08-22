@@ -9,7 +9,6 @@ import com.shhdoc.upstage.mail.MailStore;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -24,13 +23,12 @@ public class GatewayService implements Gateway {
 
     @Override
     public void enqueue(MailRequest request) {
-        Mail mail = new Mail(request);
-        mailStore.save(mail);
-        eventPublisher.publishEvent(new MailReceivedEvent(mail.mailId()));
+        Mail mail = mailStore.save(request);
+        eventPublisher.publishEvent(new MailReceivedEvent(mail.requestId()));
     }
 
     @Override
-    public List<MailStatusResponse> getStatus(Integer companyId) {
+    public List<MailStatusResponse> getStatus(Long companyId) {
         return mailStore.findIncompleteByCompany(companyId).stream()
                 .map(mail -> new MailStatusResponse(mail.mailId(), mail.status()))
                 .toList();

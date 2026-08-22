@@ -11,8 +11,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 class MailTest {
 
     private Mail newMail() {
-        MailRequest request = new MailRequest(1, 100, "a@a.com", 1, "제목", "본문", List.of(), List.of());
-        return new Mail(request);
+        MailRequest request = new MailRequest(1L, 100L, "a@a.com", 1L, "제목", "본문", List.of(), List.of());
+        return new Mail(1L, request);
     }
 
     @Test

@@ -80,6 +80,14 @@ public class Attachment {
         this.scannedAt = previous.getScannedAt();
     }
 
+    /** 다시 검사하려고 판정을 지운다. 이전 사유가 남아 있으면 화면이 낡은 이유를 계속 보여준다. */
+    public void resetScan() {
+        this.scanStatus = ScanStatus.PENDING;
+        this.verdict = null;
+        this.reason = null;
+        this.scannedAt = null;
+    }
+
     public void recordVerdict(Verdict verdict, String reason) {
         this.scanStatus = ScanStatus.DONE;
         this.verdict = verdict;

@@ -41,32 +41,36 @@ class GatewayServiceTest {
         gatewayService = new GatewayService(mailStore, eventPublisher);
     }
 
-    private MailRequest newRequest(Integer mailId, Integer companyId) {
-        return new MailRequest(mailId, companyId, "a@a.com", 1, "제목", "본문", List.of(), List.of());
+    private MailRequest newRequest(Long mailId, Long companyId) {
+        return new MailRequest(mailId, companyId, "a@a.com", 1L, "제목", "본문", List.of(), List.of());
     }
 
     @Test
     void enqueue는_큐에_저장하고_MailReceivedEvent를_발행한다() {
-        gatewayService.enqueue(newRequest(1, 100));
+        MailRequest request = newRequest(1L, 100L);
+        when(mailStore.save(request)).thenReturn(new MailStore().save(request));
 
-        verify(mailStore).save(org.mockito.ArgumentMatchers.any(Mail.class));
+        gatewayService.enqueue(request);
+
+        verify(mailStore).save(request);
         verify(eventPublisher).publishEvent(eventCaptor.capture());
-        assertThat(eventCaptor.getValue()).isEqualTo(new MailReceivedEvent(1));
+        // 이벤트가 실어 나르는 건 메일 id 가 아니라 요청 id 다.
+        assertThat(eventCaptor.getValue()).isEqualTo(new MailReceivedEvent(1L));
     }
 
     @Test
     void getStatus는_미완료건만_MailStatusResponse로_변환한다() {
-        Mail mail = new Mail(newRequest(1, 100));
-        when(mailStore.findIncompleteByCompany(100)).thenReturn(List.of(mail));
+        Mail mail = new MailStore().save(newRequest(1L, 100L));
+        when(mailStore.findIncompleteByCompany(100L)).thenReturn(List.of(mail));
 
-        List<MailStatusResponse> result = gatewayService.getStatus(100);
+        List<MailStatusResponse> result = gatewayService.getStatus(100L);
 
-        assertThat(result).containsExactly(new MailStatusResponse(1, QueueStatus.PENDING));
+        assertThat(result).containsExactly(new MailStatusResponse(1L, QueueStatus.PENDING));
     }
 
     @Test
     void publishDecision은_DecisionResponse를_그대로_이벤트로_발행한다() {
-        DecisionResponse response = new DecisionResponse(1, List.of(new AttachmentResult("key", ScanStatus.ALLOW, "ok")));
+        DecisionResponse response = new DecisionResponse(1L, List.of(new AttachmentResult("key", ScanStatus.ALLOW, "ok")));
 
         gatewayService.publishDecision(response);
 

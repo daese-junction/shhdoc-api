@@ -37,6 +37,9 @@ class EmailServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private com.shhdoc.attachment.AttachmentRepository attachmentRepository;
+
     @InjectMocks
     private EmailService emailService;
 

@@ -36,7 +36,7 @@ class DecisionEngineImplTest {
 
     @Test
     void recipientType_해석이_안된_외부발송은_와일드카드_룰로_REVIEW된다() {
-        Policy policy = new Policy(1, List.of(
+        Policy policy = new Policy(1L, List.of(
                 new Rule("payslip", "internal", ScanStatus.ALLOW),
                 new Rule("payslip", "designated-agency", ScanStatus.ALLOW),
                 new Rule("payslip", "approved-partner", ScanStatus.REVIEW),
@@ -53,7 +53,7 @@ class DecisionEngineImplTest {
 
     @Test
     void 내부발송이면_internal_룰이_매칭된다() {
-        Policy policy = new Policy(1, List.of(
+        Policy policy = new Policy(1L, List.of(
                 new Rule("payslip", "internal", ScanStatus.ALLOW),
                 new Rule("payslip", null, ScanStatus.REVIEW),
                 new Rule(null, null, ScanStatus.ALLOW)
@@ -67,7 +67,7 @@ class DecisionEngineImplTest {
 
     @Test
     void 승인파트너처럼_아직_해석못하는_유형의_룰은_매칭되지_않는다() {
-        Policy policy = new Policy(1, List.of(
+        Policy policy = new Policy(1L, List.of(
                 new Rule("payslip", "approved-partner", ScanStatus.ALLOW),
                 new Rule("payslip", null, ScanStatus.REVIEW)
         ));
@@ -82,7 +82,7 @@ class DecisionEngineImplTest {
 
     @Test
     void 카테고리가_안맞으면_전체와일드카드_룰로_폴백한다() {
-        Policy policy = new Policy(1, List.of(
+        Policy policy = new Policy(1L, List.of(
                 new Rule("payslip", null, ScanStatus.REVIEW),
                 new Rule(null, null, ScanStatus.ALLOW)
         ));
@@ -95,7 +95,7 @@ class DecisionEngineImplTest {
 
     @Test
     void 매칭되는_룰이_없으면_안전하게_REVIEW로_기본판정한다() {
-        Policy policy = new Policy(1, List.of(
+        Policy policy = new Policy(1L, List.of(
                 new Rule("payslip", null, ScanStatus.ALLOW)
         ));
         when(generator.generate(anyString())).thenReturn("사유 문장");

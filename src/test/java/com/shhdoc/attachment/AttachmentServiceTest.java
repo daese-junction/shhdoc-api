@@ -40,6 +40,9 @@ class AttachmentServiceTest {
     @Mock
     private AttachmentStorage storage;
 
+    @Mock
+    private org.springframework.context.ApplicationEventPublisher eventPublisher;
+
     @InjectMocks
     private AttachmentService attachmentService;
 

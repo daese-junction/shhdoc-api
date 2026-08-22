@@ -24,7 +24,7 @@ public class PolicyServiceImpl implements PolicyService {
     );
 
     @Override
-    public Policy findByCompany(Integer companyId) {
+    public Policy findByCompany(Long companyId) {
         return new Policy(companyId, MOCK_POLICY.rules());
     }
 }
