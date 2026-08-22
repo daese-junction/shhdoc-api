@@ -10,8 +10,10 @@ import static org.mockito.Mockito.verify;
 import com.shhdoc.common.ApiException;
 import com.shhdoc.company.dto.AddMemberRequest;
 import com.shhdoc.company.dto.CreateCompanyRequest;
+import com.shhdoc.user.Role;
 import com.shhdoc.user.User;
 import com.shhdoc.user.UserRepository;
+import java.util.List;
 import java.util.Optional;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.Test;
@@ -121,5 +123,28 @@ class CompanyServiceTest {
 
         assertThat(response.department()).isNull();
         assertThat(response.position()).isNull();
+    }
+
+    @Test
+    void 구성원_목록은_내_회사_사람만_나온다() {
+        Company company = new Company("쉿닥", "shhdoc.com");
+        given(userRepository.findByCompanyIdOrderByIdAsc(1L)).willReturn(List.of(
+                new User(company, "alice@shhdoc.com", "hashed", "alice", Role.ADMIN),
+                new User(company, "bob@shhdoc.com", "hashed", "bob", Role.USER)));
+
+        var members = companyService.listMembers(1L);
+
+        assertThat(members).extracting("email")
+                .containsExactly("alice@shhdoc.com", "bob@shhdoc.com");
+    }
+
+    @Test
+    void 없는_회사를_조회하면_404() {
+        given(companyRepository.findById(99L)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> companyService.getMyCompany(99L))
+                .asInstanceOf(InstanceOfAssertFactories.type(ApiException.class))
+                .extracting(ApiException::getStatus)
+                .isEqualTo(HttpStatus.NOT_FOUND);
     }
 }
