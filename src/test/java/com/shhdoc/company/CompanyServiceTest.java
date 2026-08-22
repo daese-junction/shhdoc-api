@@ -10,8 +10,10 @@ import static org.mockito.Mockito.verify;
 import com.shhdoc.common.ApiException;
 import com.shhdoc.company.dto.AddMemberRequest;
 import com.shhdoc.company.dto.CreateCompanyRequest;
+import com.shhdoc.user.Role;
 import com.shhdoc.user.User;
 import com.shhdoc.user.UserRepository;
+import java.util.List;
 import java.util.Optional;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.Test;
@@ -43,7 +45,7 @@ class CompanyServiceTest {
         given(companyRepository.existsByEmailDomain("shhdoc.com")).willReturn(true);
 
         assertThatThrownBy(() -> companyService.createCompany(
-                new CreateCompanyRequest("쉿닥", "shhdoc.com", "alice@shhdoc.com", "password123", "alice")))
+                new CreateCompanyRequest("쉿닥", "shhdoc.com", "alice@shhdoc.com", "password123", "alice", null, null)))
                 .asInstanceOf(InstanceOfAssertFactories.type(ApiException.class))
                 .extracting(ApiException::getStatus)
                 .isEqualTo(HttpStatus.CONFLICT);
@@ -58,7 +60,7 @@ class CompanyServiceTest {
                 .willAnswer(invocation -> invocation.getArgument(0));
 
         assertThatThrownBy(() -> companyService.createCompany(
-                new CreateCompanyRequest("쉿닥", "shhdoc.com", "alice@gmail.com", "password123", "alice")))
+                new CreateCompanyRequest("쉿닥", "shhdoc.com", "alice@gmail.com", "password123", "alice", null, null)))
                 .asInstanceOf(InstanceOfAssertFactories.type(ApiException.class))
                 .extracting(ApiException::getStatus)
                 .isEqualTo(HttpStatus.BAD_REQUEST);
@@ -71,7 +73,7 @@ class CompanyServiceTest {
         given(companyRepository.findById(1L)).willReturn(Optional.of(new Company("쉿닥", "shhdoc.com")));
 
         assertThatThrownBy(() -> companyService.addMember(
-                1L, new AddMemberRequest("bob@gmail.com", "password123", "bob")))
+                1L, new AddMemberRequest("bob@gmail.com", "password123", "bob", null, null)))
                 .asInstanceOf(InstanceOfAssertFactories.type(ApiException.class))
                 .extracting(ApiException::getStatus)
                 .isEqualTo(HttpStatus.BAD_REQUEST);
@@ -85,7 +87,7 @@ class CompanyServiceTest {
         given(userRepository.existsByEmail("bob@shhdoc.com")).willReturn(true);
 
         assertThatThrownBy(() -> companyService.addMember(
-                1L, new AddMemberRequest("Bob@ShhDoc.com", "password123", "bob")))
+                1L, new AddMemberRequest("Bob@ShhDoc.com", "password123", "bob", null, null)))
                 .asInstanceOf(InstanceOfAssertFactories.type(ApiException.class))
                 .extracting(ApiException::getStatus)
                 .isEqualTo(HttpStatus.CONFLICT);
@@ -99,8 +101,50 @@ class CompanyServiceTest {
         given(userRepository.save(org.mockito.ArgumentMatchers.any(User.class)))
                 .willAnswer(invocation -> invocation.getArgument(0));
 
-        var response = companyService.addMember(1L, new AddMemberRequest("bob@shhdoc.com", "password123", "bob"));
+        var response = companyService.addMember(
+                1L, new AddMemberRequest("bob@shhdoc.com", "password123", "bob", "영업팀", "대리"));
 
         assertThat(response.email()).isEqualTo("bob@shhdoc.com");
+        assertThat(response.department()).isEqualTo("영업팀");
+        assertThat(response.position()).isEqualTo("대리");
+    }
+
+    @Test
+    void 부서와_직급은_선택값이라_비워두면_null_로_들어간다() {
+        given(companyRepository.findById(1L)).willReturn(Optional.of(new Company("쉿닥", "shhdoc.com")));
+        given(userRepository.existsByEmail("bob@shhdoc.com")).willReturn(false);
+        given(passwordEncoder.encode(anyString())).willReturn("hashed");
+        given(userRepository.save(org.mockito.ArgumentMatchers.any(User.class)))
+                .willAnswer(invocation -> invocation.getArgument(0));
+
+        // 프론트가 빈 문자열을 보내도 미입력과 같게 본다.
+        var response = companyService.addMember(
+                1L, new AddMemberRequest("bob@shhdoc.com", "password123", "bob", "  ", null));
+
+        assertThat(response.department()).isNull();
+        assertThat(response.position()).isNull();
+    }
+
+    @Test
+    void 구성원_목록은_내_회사_사람만_나온다() {
+        Company company = new Company("쉿닥", "shhdoc.com");
+        given(userRepository.findByCompanyIdOrderByIdAsc(1L)).willReturn(List.of(
+                new User(company, "alice@shhdoc.com", "hashed", "alice", Role.ADMIN),
+                new User(company, "bob@shhdoc.com", "hashed", "bob", Role.USER)));
+
+        var members = companyService.listMembers(1L);
+
+        assertThat(members).extracting("email")
+                .containsExactly("alice@shhdoc.com", "bob@shhdoc.com");
+    }
+
+    @Test
+    void 없는_회사를_조회하면_404() {
+        given(companyRepository.findById(99L)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> companyService.getMyCompany(99L))
+                .asInstanceOf(InstanceOfAssertFactories.type(ApiException.class))
+                .extracting(ApiException::getStatus)
+                .isEqualTo(HttpStatus.NOT_FOUND);
     }
 }

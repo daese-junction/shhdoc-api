@@ -2,6 +2,7 @@ package com.shhdoc.company;
 
 import com.shhdoc.auth.UserPrincipal;
 import com.shhdoc.company.dto.AddMemberRequest;
+import com.shhdoc.company.dto.CompanyResponse;
 import com.shhdoc.company.dto.CreateCompanyRequest;
 import com.shhdoc.company.dto.CreateCompanyResponse;
 import com.shhdoc.user.dto.UserResponse;
@@ -12,10 +13,12 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -50,6 +53,35 @@ public class CompanyController {
     @ResponseStatus(HttpStatus.CREATED)
     public CreateCompanyResponse create(@Valid @RequestBody CreateCompanyRequest request) {
         return companyService.createCompany(request);
+    }
+
+    @Operation(
+            summary = "내 회사 정보 조회",
+            description = "토큰의 소속 회사를 그대로 읽는다. 남의 회사는 조회할 수 없다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "401", description = "토큰 없음 또는 만료", content = @Content)
+    })
+    @GetMapping("/me")
+    public CompanyResponse getMyCompany(@AuthenticationPrincipal UserPrincipal principal) {
+        return companyService.getMyCompany(principal.companyId());
+    }
+
+    @Operation(
+            summary = "사내 구성원 목록",
+            description = """
+                    같은 회사 계정 전체를 등록순으로 준다. 관리자의 직원 관리 화면과
+                    메일 작성 시 수신자 선택 양쪽에서 쓰므로 ADMIN 전용이 아니다.
+
+                    비밀번호나 토큰은 응답에 포함되지 않는다.
+                    """)
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "조회 성공"),
+            @ApiResponse(responseCode = "401", description = "토큰 없음 또는 만료", content = @Content)
+    })
+    @GetMapping("/members")
+    public List<UserResponse> listMembers(@AuthenticationPrincipal UserPrincipal principal) {
+        return companyService.listMembers(principal.companyId());
     }
 
     @Operation(

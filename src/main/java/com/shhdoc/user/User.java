@@ -36,6 +36,12 @@ public class User {
 
     private String name;
 
+    /** 회사마다 부르는 이름이 달라 표시용 문자열로 둔다. 권한은 role 이 정한다. */
+    private String department;
+
+    /** 직급도 마찬가지. 사원/대리 같은 값이 회사마다 다르다. */
+    private String position;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Role role;
@@ -57,6 +63,16 @@ public class User {
         this.passwordHash = passwordHash;
         this.name = name;
         this.role = role;
+    }
+
+    /** 부서·직급은 선택값이라 생성자 대신 여기서 채운다. 빈 문자열은 null 로 모은다. */
+    public void updateProfile(String department, String position) {
+        this.department = blankToNull(department);
+        this.position = blankToNull(position);
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     public void updateRefreshToken(String refreshToken) {

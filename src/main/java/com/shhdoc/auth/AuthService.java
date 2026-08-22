@@ -62,6 +62,8 @@ public class AuthService {
                 user.getId(),
                 user.getEmail(),
                 user.getName(),
+                user.getDepartment(),
+                user.getPosition(),
                 user.getRole(),
                 CompanyResponse.from(user.getCompany()));
     }
