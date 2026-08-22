@@ -56,6 +56,8 @@ class AttachmentIntegrationTest {
                 .willReturn(new AttachmentStorage.PresignedUpload("key-1", "http://storage.test/put", 900));
         given(storage.requireUploaded("key-1")).willReturn(2048L);
         given(storage.sha256("key-1")).willReturn("hash-1");
+        given(storage.requireUploaded("key-2")).willReturn(4096L);
+        given(storage.sha256("key-2")).willReturn("hash-2");
         given(storage.presignDownload(anyString(), anyString()))
                 .willReturn(new AttachmentStorage.PresignedDownload("http://storage.test/get", 900));
 
@@ -126,7 +128,7 @@ class AttachmentIntegrationTest {
                         .header(AUTHORIZATION, "Bearer " + memberToken)
                         .contentType(APPLICATION_JSON)
                         .content("""
-                                {"storageKey":"key-1","filename":"계약서.pdf"}
+                                {"storageKey":"key-2","filename":"계약서.pdf"}
                                 """))
                 .andExpect(status().isCreated());
 
@@ -134,7 +136,7 @@ class AttachmentIntegrationTest {
         verify(gateway).enqueue(captor.capture());
         assertThat(captor.getValue().senderAddress()).isEqualTo("bob@attach-test.com");
         assertThat(captor.getValue().attachments()).singleElement()
-                .satisfies(a -> assertThat(a.storageKey()).isEqualTo("key-1"));
+                .satisfies(a -> assertThat(a.storageKey()).isEqualTo("key-2"));
     }
 
     @Test
