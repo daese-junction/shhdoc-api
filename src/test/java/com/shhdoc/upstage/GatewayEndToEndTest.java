@@ -7,10 +7,8 @@ import com.shhdoc.upstage.dto.MailRequest;
 import com.shhdoc.upstage.dto.Recipient;
 import com.shhdoc.upstage.dto.ScanStatus;
 import com.shhdoc.upstage.pipeline.DocumentFile;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -24,7 +22,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.List;
-import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
@@ -34,6 +31,10 @@ import static org.awaitility.Awaitility.await;
  * 스토리지(MinIO)는 컨테이너 없이 {@link AttachmentLoader}만 테스트용으로 바꿔치기해서
  * classpath 샘플파일을 바로 돌려준다 — pipeline(실 Upstage API)/큐/정책/판정 로직은 전부 실제.
  *
+ * <p>5건을 전부 먼저 enqueue한 다음 한꺼번에 기다린다 — {@code MailProcessor}의
+ * 워커풀(4개)이 실제로 동시에 여러 메일을 처리하는지까지 검증한다 (한 건씩 순차로
+ * enqueue→대기를 반복하면 워커풀은 있으나마나라 동시처리가 검증 안 됨).
+ *
  * <p>{@code UPSTAGE_API_KEY} 없으면 전체 스킵.
  */
 @SpringBootTest
@@ -42,54 +43,63 @@ import static org.awaitility.Awaitility.await;
 @RecordApplicationEvents
 class GatewayEndToEndTest {
 
+    private static final String SENDER = "sender@company.com";
+    private static final String INTERNAL_RECIPIENT = "colleague@company.com";
+    private static final String EXTERNAL_RECIPIENT = "recipient@external-partner.com";
+
     @Autowired
     private Gateway gateway;
 
     @Autowired
     private ApplicationEvents events;
 
-    private static final String SENDER = "sender@company.com";
-    private static final String INTERNAL_RECIPIENT = "colleague@company.com";
-    private static final String EXTERNAL_RECIPIENT = "recipient@external-partner.com";
-
-    static Stream<Arguments> documents() {
-        return Stream.of(
-                // 급여명세서, 외부발송: mock 정책상 payslip+외부(미분류) 룰 → REVIEW
-                Arguments.of(1001, "sample-payslip.pdf", "storage-key-payslip-ext", EXTERNAL_RECIPIENT, ScanStatus.REVIEW),
-                // 급여명세서, 내부발송(같은 도메인): payslip+internal 룰 → ALLOW
-                Arguments.of(1005, "sample-payslip.pdf", "storage-key-payslip-int", INTERNAL_RECIPIENT, ScanStatus.ALLOW),
-                // 계약서, 외부발송: payslip 전용 룰 안 걸림 → 와일드카드 폴백 → ALLOW
-                Arguments.of(1002, "sample-contract.pdf", "storage-key-contract", EXTERNAL_RECIPIENT, ScanStatus.ALLOW),
-                // 공지문, 외부발송: 민감정보 없음 → ALLOW (false positive 안 나는지 검증)
-                Arguments.of(1003, "sample-notice.pdf", "storage-key-notice", EXTERNAL_RECIPIENT, ScanStatus.ALLOW),
-                // 사업계획서, 외부발송: 개인정보 없이 재무+대외비만 → ALLOW (payslip과 다른 신호조합)
-                Arguments.of(1004, "sample-business-plan.pdf", "storage-key-business-plan", EXTERNAL_RECIPIENT, ScanStatus.ALLOW)
-        );
+    private record DocumentCase(
+            Integer mailId, String fileName, String storageKey, String recipientAddress, ScanStatus expectedStatus) {
     }
 
-    @ParameterizedTest
-    @MethodSource("documents")
-    void enqueue부터_publishDecision까지_문서유형별로_실제로_동작한다(
-            Integer mailId, String fileName, String storageKey, String recipientAddress, ScanStatus expectedStatus) {
-        Attachment attachment = new Attachment(fileName, 1, storageKey, "fake-hash");
-        MailRequest request = new MailRequest(
-                mailId, 1, SENDER, 1, "제목", "본문",
-                List.of(new Recipient(recipientAddress)),
-                List.of(attachment)
-        );
+    private static final List<DocumentCase> CASES = List.of(
+            // 급여명세서, 외부발송: mock 정책상 payslip+외부(미분류) 룰 → REVIEW
+            new DocumentCase(1001, "sample-payslip.pdf", "storage-key-payslip-ext", EXTERNAL_RECIPIENT, ScanStatus.REVIEW),
+            // 급여명세서, 내부발송(같은 도메인): payslip+internal 룰 → ALLOW
+            new DocumentCase(1005, "sample-payslip.pdf", "storage-key-payslip-int", INTERNAL_RECIPIENT, ScanStatus.ALLOW),
+            // 계약서, 외부발송: payslip 전용 룰 안 걸림 → 와일드카드 폴백 → ALLOW
+            new DocumentCase(1002, "sample-contract.pdf", "storage-key-contract", EXTERNAL_RECIPIENT, ScanStatus.ALLOW),
+            // 공지문, 외부발송: 민감정보 없음 → ALLOW (false positive 안 나는지 검증)
+            new DocumentCase(1003, "sample-notice.pdf", "storage-key-notice", EXTERNAL_RECIPIENT, ScanStatus.ALLOW),
+            // 사업계획서, 외부발송: 개인정보 없이 재무+대외비만 → ALLOW (payslip과 다른 신호조합)
+            new DocumentCase(1004, "sample-business-plan.pdf", "storage-key-business-plan", EXTERNAL_RECIPIENT, ScanStatus.ALLOW)
+    );
 
-        gateway.enqueue(request);
+    @Test
+    void enqueue부터_publishDecision까지_5건을_동시에_처리한다() {
+        for (DocumentCase testCase : CASES) {
+            Attachment attachment = new Attachment(testCase.fileName(), 1, testCase.storageKey(), "fake-hash");
+            MailRequest request = new MailRequest(
+                    testCase.mailId(), 1, SENDER, 1, "제목", "본문",
+                    List.of(new Recipient(testCase.recipientAddress())),
+                    List.of(attachment)
+            );
+            gateway.enqueue(request);
+        }
 
-        await().atMost(Duration.ofSeconds(30)).untilAsserted(() -> {
-            List<DecisionResponse> published = events.stream(DecisionResponse.class)
-                    .filter(response -> response.mailId().equals(mailId))
-                    .toList();
+        await().atMost(Duration.ofSeconds(60))
+                .until(() -> events.stream(DecisionResponse.class).count() >= CASES.size());
 
-            assertThat(published).hasSize(1);
-            assertThat(published.get(0).attachments()).hasSize(1);
-            assertThat(published.get(0).attachments().get(0).storageKey()).isEqualTo(storageKey);
-            assertThat(published.get(0).attachments().get(0).status()).isEqualTo(expectedStatus);
-        });
+        List<DecisionResponse> published = events.stream(DecisionResponse.class).toList();
+        System.out.println(published);
+
+        assertThat(published).hasSize(CASES.size());
+
+        for (DocumentCase testCase : CASES) {
+            DecisionResponse response = published.stream()
+                    .filter(r -> r.mailId().equals(testCase.mailId()))
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError("mailId " + testCase.mailId() + " 결과 없음"));
+
+            assertThat(response.attachments()).hasSize(1);
+            assertThat(response.attachments().get(0).storageKey()).isEqualTo(testCase.storageKey());
+            assertThat(response.attachments().get(0).status()).isEqualTo(testCase.expectedStatus());
+        }
     }
 
     @TestConfiguration
