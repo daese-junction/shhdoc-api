@@ -40,13 +40,4 @@ public class GatewayService implements Gateway {
     public void publishDecision(DecisionResponse response) {
         eventPublisher.publishEvent(response);
     }
-
-    /**
-     * 메일 제공사 모듈의 실제 리스너가 생기기 전까지, 이벤트가 정상 발행되는지
-     * 확인하기 위한 임시 리스너. 진짜 리스너는 upstage 밖(메일 제공사 모듈)에 있어야 한다.
-     */
-    @EventListener
-    private void onDecisionPublished(DecisionResponse response) {
-        log.info("decision published: {}", response);
-    }
 }
