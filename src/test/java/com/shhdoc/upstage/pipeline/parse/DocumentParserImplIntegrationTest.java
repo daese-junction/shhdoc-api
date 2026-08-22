@@ -28,6 +28,7 @@ class DocumentParserImplIntegrationTest {
     @BeforeEach
     void setUp() {
         String apiKey = System.getenv("UPSTAGE_API_KEY");
+        documentParser = new DocumentParserImpl(apiKey, ENDPOINT);
     }
 
     @ParameterizedTest
