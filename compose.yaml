@@ -1,0 +1,10 @@
+services:
+  mysql:
+    image: 'mysql:8.4'
+    environment:
+      - 'MYSQL_DATABASE=shhdoc'
+      - 'MYSQL_USER=shhdoc'
+      - 'MYSQL_PASSWORD=shhdoc'
+      - 'MYSQL_ROOT_PASSWORD=root'
+    ports:
+      - '3306:3306'
