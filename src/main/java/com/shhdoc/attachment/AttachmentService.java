@@ -47,7 +47,9 @@ public class AttachmentService {
 
         Attachment attachment = new Attachment(email, request.filename(), size, request.storageKey(), hash);
         // 같은 파일을 이미 검사했다면 판정을 그대로 가져온다 (ERD의 content_hash 재사용).
-        attachmentRepository.findFirstByContentHashAndScanStatusOrderByIdAsc(hash, ScanStatus.DONE)
+        // DONE 만 본다 — 실패(FAILED)를 물려받으면 그 파일이 영원히 재검사되지 않는다.
+        attachmentRepository.findFirstByContentHashAndScanStatusAndEmailSenderCompanyIdOrderByIdAsc(
+                        hash, ScanStatus.DONE, email.getSender().getCompany().getId())
                 .ifPresent(attachment::reuseVerdictOf);
 
         Attachment saved = attachmentRepository.save(attachment);

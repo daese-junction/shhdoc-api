@@ -95,6 +95,20 @@ public class Attachment {
         this.scannedAt = Instant.now();
     }
 
+    /**
+     * 검사에 실패했다. DONE 이 아니라 FAILED 다 — DONE 으로 두면 두 가지가 깨진다.
+     * 해시 재사용이 이 실패를 물려받아 같은 파일이 영원히 차단되고,
+     * 기동 시 보정도 DONE 은 끝난 것으로 보고 건너뛴다.
+     *
+     * <p>판정은 비운다. 검사를 못 한 것이지 차단된 것이 아니다.
+     */
+    public void recordFailure(String reason) {
+        this.scanStatus = ScanStatus.FAILED;
+        this.verdict = null;
+        this.reason = reason;
+        this.scannedAt = Instant.now();
+    }
+
     @PrePersist
     void onCreate() {
         this.createdAt = Instant.now();

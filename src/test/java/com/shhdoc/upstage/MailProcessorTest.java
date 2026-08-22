@@ -109,7 +109,7 @@ class MailProcessorTest {
 
         assertThat(mail.status()).isEqualTo(QueueStatus.DONE);
         verify(gateway).publishDecision(new DecisionResponse(1L,
-                List.of(new com.shhdoc.upstage.dto.AttachmentResult("storage-key-1", ScanStatus.REVIEW,
+                List.of(new com.shhdoc.upstage.dto.AttachmentResult("storage-key-1", ScanStatus.FAILED,
                         "자동 검사를 완료하지 못했습니다. 관리자 확인이 필요합니다."))));
     }
 
@@ -124,7 +124,7 @@ class MailProcessorTest {
 
         assertThat(mail.status()).isEqualTo(QueueStatus.DONE);
         verify(gateway).publishDecision(new DecisionResponse(1L,
-                List.of(new com.shhdoc.upstage.dto.AttachmentResult("storage-key-1", ScanStatus.REVIEW,
+                List.of(new com.shhdoc.upstage.dto.AttachmentResult("storage-key-1", ScanStatus.FAILED,
                         "자동 검사를 완료하지 못했습니다. 관리자 확인이 필요합니다."))));
         verifyNoInteractions(documentAnalyzer, contextBuilder, decisionEngine);
     }

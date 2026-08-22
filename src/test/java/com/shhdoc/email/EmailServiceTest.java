@@ -77,6 +77,26 @@ class EmailServiceTest {
         assertThat(response.sentAt()).isNull();
     }
 
+    /**
+     * 검사에 실패한 첨부는 판정이 비어 있어 BLOCKED 조건에 안 걸린다. 따로 막지 않으면
+     * 아무도 열어보지 못한 파일이 사내 발송으로 그냥 나간다.
+     */
+    @Test
+    void 검사에_실패한_첨부가_있으면_사내라도_승인_대기로_간다() {
+        given(emailRepository.findByIdAndSenderId(1L, 1L))
+                .willReturn(Optional.of(draftTo("carol@shhdoc.com")));
+        // 검사 중(PENDING) 여부를 먼저 묻는다. 안 채워두면 strict stub 이 인자 불일치로 막는다.
+        given(attachmentRepository.existsByEmailIdAndScanStatus(
+                1L, com.shhdoc.attachment.ScanStatus.PENDING)).willReturn(false);
+        given(attachmentRepository.existsByEmailIdAndScanStatus(
+                1L, com.shhdoc.attachment.ScanStatus.FAILED)).willReturn(true);
+
+        var response = emailService.send(1L, 1L);
+
+        assertThat(response.status()).isEqualTo(EmailStatus.BLOCKED);
+        assertThat(response.sentAt()).isNull();
+    }
+
     @Test
     void 수신자가_없으면_발송할_수_없다() {
         given(emailRepository.findByIdAndSenderId(1L, 1L)).willReturn(Optional.of(draftTo()));

@@ -21,6 +21,9 @@ public class PendingScanRecovery implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
+        // PENDING 만 되살린다. FAILED 는 일부러 뺐다 — 외부 API 가 죽어 있는 동안 실패가 쌓이면
+        // 재시작할 때마다 그 전량이 한꺼번에 다시 나가고, 손상된 파일처럼 영구히 실패하는 건도
+        // 매번 재시도된다. 실패한 첨부는 재검사(POST /attachments/{id}/rescan)로 사람이 되돌린다.
         List<Attachment> pending = attachmentRepository.findByScanStatus(ScanStatus.PENDING);
         if (pending.isEmpty()) {
             return;

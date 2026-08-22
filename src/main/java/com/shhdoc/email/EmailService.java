@@ -78,7 +78,10 @@ public class EmailService {
         }
 
         // 사외 발송은 그 자체로 보류 대상이고, 차단 판정이 난 첨부가 있으면 사내라도 보류한다.
+        // 검사에 실패한 첨부(FAILED)도 보류다 — 판정이 비어 있어 BLOCKED 조건에 안 걸리는데,
+        // 그대로 두면 아무도 열어보지 못한 파일이 통과한다.
         if (attachmentRepository.existsByEmailIdAndVerdict(emailId, Verdict.BLOCKED)
+                || attachmentRepository.existsByEmailIdAndScanStatus(emailId, ScanStatus.FAILED)
                 || email.hasExternalRecipient()) {
             email.markBlocked();
         } else {
