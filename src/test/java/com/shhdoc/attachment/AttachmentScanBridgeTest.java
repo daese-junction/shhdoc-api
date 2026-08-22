@@ -60,7 +60,8 @@ class AttachmentScanBridgeTest {
                 List.of(new AttachmentResult("key-1", ScanStatus.ALLOW, "공개 가능한 문서입니다."))));
 
         assertThat(attachment.getVerdict()).isEqualTo(Verdict.ALLOWED);
-        assertThat(attachment.getScanStatus()).isEqualTo(ScanStatus.DONE);
+        // import 한 ScanStatus 는 upstage 쪽(ALLOW/REVIEW)이라 여기서는 첨부 쪽을 명시한다.
+        assertThat(attachment.getScanStatus()).isEqualTo(com.shhdoc.attachment.ScanStatus.DONE);
         assertThat(attachment.getReason()).isEqualTo("공개 가능한 문서입니다.");
         assertThat(attachment.getScannedAt()).isNotNull();
     }
