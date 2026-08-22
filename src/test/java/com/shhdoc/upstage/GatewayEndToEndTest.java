@@ -7,6 +7,9 @@ import com.shhdoc.upstage.dto.MailRequest;
 import com.shhdoc.upstage.dto.Recipient;
 import com.shhdoc.upstage.dto.ScanStatus;
 import com.shhdoc.upstage.pipeline.DocumentFile;
+import com.shhdoc.upstage.policy.Policy;
+import com.shhdoc.upstage.policy.PolicyService;
+import com.shhdoc.upstage.policy.Rule;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,8 +31,9 @@ import static org.awaitility.Awaitility.await;
 
 /**
  * Gateway.enqueue()부터 publishDecision()까지 실제로 동작하는지 확인하는 e2e 테스트.
- * 스토리지(MinIO)는 컨테이너 없이 {@link AttachmentLoader}만 테스트용으로 바꿔치기해서
- * classpath 샘플파일을 바로 돌려준다 — pipeline(실 Upstage API)/큐/정책/판정 로직은 전부 실제.
+ * 스토리지(MinIO)와 정책 데이터(실 DB)는 컨테이너/시드 데이터 없이 각각
+ * {@link AttachmentLoader}/{@link PolicyService}만 테스트용으로 바꿔치기한다 —
+ * pipeline(실 Upstage API)/큐/판정 로직은 전부 실제.
  *
  * <p>5건을 전부 먼저 enqueue한 다음 한꺼번에 기다린다 — {@code MailProcessor}의
  * 워커풀(4개)이 실제로 동시에 여러 메일을 처리하는지까지 검증한다 (한 건씩 순차로
@@ -38,7 +42,8 @@ import static org.awaitility.Awaitility.await;
  * <p>{@code UPSTAGE_API_KEY} 없으면 전체 스킵.
  */
 @SpringBootTest
-@Import({TestcontainersConfiguration.class, GatewayEndToEndTest.StubAttachmentLoaderConfig.class})
+@Import({TestcontainersConfiguration.class, GatewayEndToEndTest.StubAttachmentLoaderConfig.class,
+        GatewayEndToEndTest.StubPolicyServiceConfig.class})
 @EnabledIfEnvironmentVariable(named = "UPSTAGE_API_KEY", matches = ".+")
 @RecordApplicationEvents
 class GatewayEndToEndTest {
@@ -119,6 +124,21 @@ class GatewayEndToEndTest {
                     throw new RuntimeException(e);
                 }
             };
+        }
+    }
+
+    @TestConfiguration
+    static class StubPolicyServiceConfig {
+
+        @Bean
+        @Primary
+        PolicyService stubPolicyService() {
+            List<Rule> rules = List.of(
+                    new Rule("payslip", "internal", ScanStatus.ALLOW),
+                    new Rule("payslip", null, ScanStatus.REVIEW),
+                    new Rule(null, null, ScanStatus.ALLOW)
+            );
+            return companyId -> new Policy(companyId, rules);
         }
     }
 }

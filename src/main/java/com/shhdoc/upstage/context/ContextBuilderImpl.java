@@ -12,6 +12,7 @@ import java.util.List;
 public class ContextBuilderImpl implements ContextBuilder {
 
     private static final String INTERNAL = "internal";
+    private static final String EXTERNAL = "external";
 
     @Override
     public MailContext build(MailRequest mail, DocumentAnalysisResult docResult) {
@@ -31,14 +32,15 @@ public class ContextBuilderImpl implements ContextBuilder {
     }
 
     /**
-     * 발신자와 모든 수신자의 도메인이 같으면 "internal". 그 외(승인된 파트너 등)는
-     * 판단할 정책 데이터가 없어서 미해석({@code null})으로 둔다.
+     * 발신자와 모든 수신자의 도메인이 같으면 "internal", 아니면 "external".
+     * 승인된 파트너/개인메일처럼 더 세분화된 유형은 아직 회사별 등록 도메인 데이터를
+     * 조회하지 않아서 구분 못 하고 전부 "external"로 뭉뚱그린다 (Stage B에서 보강).
      */
     private String resolveRecipientType(String senderAddress, List<String> recipientAddresses) {
         String senderDomain = domainOf(senderAddress);
         boolean allInternal = !recipientAddresses.isEmpty()
                 && recipientAddresses.stream().allMatch(address -> senderDomain.equals(domainOf(address)));
-        return allInternal ? INTERNAL : null;
+        return allInternal ? INTERNAL : EXTERNAL;
     }
 
     private String domainOf(String address) {

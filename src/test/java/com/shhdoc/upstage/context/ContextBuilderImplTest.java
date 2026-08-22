@@ -46,7 +46,7 @@ class ContextBuilderImplTest {
     }
 
     @Test
-    void 발신자와_수신자_도메인이_다르면_recipientType은_미해석이다() {
+    void 발신자와_수신자_도메인이_다르면_external이다() {
         MailRequest mail = new MailRequest(
                 1L, 100L, "sender@a.com", 1L, "제목", "본문",
                 List.of(new Recipient("r1@b.com")),
@@ -55,7 +55,7 @@ class ContextBuilderImplTest {
 
         MailContext context = contextBuilder.build(mail, docResult());
 
-        assertThat(context.recipientType()).isNull();
+        assertThat(context.recipientType()).isEqualTo("external");
     }
 
     @Test
@@ -72,7 +72,7 @@ class ContextBuilderImplTest {
     }
 
     @Test
-    void 수신자_중_하나라도_다른_도메인이면_internal이_아니다() {
+    void 수신자_중_하나라도_다른_도메인이면_external이다() {
         MailRequest mail = new MailRequest(
                 1L, 100L, "sender@a.com", 1L, "제목", "본문",
                 List.of(new Recipient("r1@a.com"), new Recipient("r2@b.com")),
@@ -81,6 +81,6 @@ class ContextBuilderImplTest {
 
         MailContext context = contextBuilder.build(mail, docResult());
 
-        assertThat(context.recipientType()).isNull();
+        assertThat(context.recipientType()).isEqualTo("external");
     }
 }
