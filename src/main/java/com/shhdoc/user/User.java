@@ -59,11 +59,6 @@ public class User {
         this.role = role;
     }
 
-    /** 대소문자만 다른 중복 가입을 막기 위해 저장·조회 양쪽에서 이걸 통과시킨다. */
-    public static String normalizeEmail(String email) {
-        return email.trim().toLowerCase();
-    }
-
     public void updateRefreshToken(String refreshToken) {
         this.refreshToken = refreshToken;
     }

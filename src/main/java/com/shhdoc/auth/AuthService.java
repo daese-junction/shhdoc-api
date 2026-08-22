@@ -5,6 +5,7 @@ import com.shhdoc.auth.dto.MeResponse;
 import com.shhdoc.auth.dto.RefreshRequest;
 import com.shhdoc.auth.dto.TokenResponse;
 import com.shhdoc.common.ApiException;
+import com.shhdoc.common.EmailAddresses;
 import com.shhdoc.company.dto.CompanyResponse;
 import com.shhdoc.user.User;
 import com.shhdoc.user.UserRepository;
@@ -30,7 +31,7 @@ public class AuthService {
 
     @Transactional
     public TokenResponse login(LoginRequest request) {
-        User user = userRepository.findByEmail(User.normalizeEmail(request.email()))
+        User user = userRepository.findByEmail(EmailAddresses.normalize(request.email()))
                 .filter(it -> passwordEncoder.matches(request.password(), it.getPasswordHash()))
                 .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, LOGIN_FAILED));
         return issueTokens(user);
