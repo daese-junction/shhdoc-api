@@ -1,6 +1,7 @@
 package com.shhdoc.attachment;
 
 import com.shhdoc.email.Email;
+import com.shhdoc.email.EmailService;
 import com.shhdoc.upstage.Gateway;
 import com.shhdoc.upstage.dto.AttachmentResult;
 import com.shhdoc.upstage.dto.DecisionResponse;
@@ -28,6 +29,7 @@ public class AttachmentScanBridge {
 
     private final AttachmentRepository attachmentRepository;
     private final Gateway gateway;
+    private final EmailService emailService;
 
     /**
      * 커밋 이후에 검사를 요청한다. 첨부 한 건이 요청 하나다.
@@ -52,6 +54,9 @@ public class AttachmentScanBridge {
                     attachment -> apply(attachment, result),
                     () -> log.warn("판정이 왔지만 첨부를 찾지 못함: storageKey={}", result.storageKey()));
         }
+        // 판정이 늦게 도착해 보류 사유가 사라졌을 수 있다. 승인 대기에 묶인 메일을 풀어준다.
+        // 같은 트랜잭션이라 바로 위에서 기록한 판정이 보인다.
+        emailService.releaseIfCleared(response.mailId());
     }
 
     private static void apply(Attachment attachment, AttachmentResult result) {

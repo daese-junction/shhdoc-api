@@ -1,7 +1,6 @@
 package com.shhdoc.email;
 
 import com.shhdoc.common.ApiException;
-import com.shhdoc.common.EmailAddresses;
 import com.shhdoc.user.User;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -101,13 +100,6 @@ public class Email {
     public void replaceRecipients(List<EmailRecipient> newRecipients) {
         recipients.clear();
         recipients.addAll(newRecipients);
-    }
-
-    /** 소속 회사 도메인이 아닌 수신자가 하나라도 있으면 사외 발송이다. */
-    public boolean hasExternalRecipient() {
-        String companyDomain = sender.getCompany().getEmailDomain();
-        return recipients.stream()
-                .anyMatch(recipient -> !EmailAddresses.domainOf(recipient.getAddress()).equals(companyDomain));
     }
 
     public void markSent() {
