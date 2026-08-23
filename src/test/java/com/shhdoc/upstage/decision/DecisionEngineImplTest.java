@@ -99,16 +99,36 @@ class DecisionEngineImplTest {
         assertThat(verdict.status()).isEqualTo(ScanStatus.ALLOW);
     }
 
+    /**
+     * 정책은 막을 것만 나열하는 모델이라 안 걸리면 통과다. REVIEW 로 두면 룰과 무관한 문서까지
+     * 전부 보류로 떨어져 명함 한 장도 승인을 받아야 했다. 사외 발송은 이 판정과 별개로
+     * {@code EmailService.send} 가 항상 막는다.
+     */
     @Test
-    void 매칭되는_룰이_없으면_안전하게_REVIEW로_기본판정한다() {
+    void 매칭되는_룰이_없으면_ALLOW로_기본판정한다() {
         Policy policy = new Policy(1L, List.of(
-                new Rule("payslip", null, null, null, ScanStatus.ALLOW)
+                new Rule("payslip", null, null, null, ScanStatus.REVIEW)
         ));
         when(generator.generate(anyString())).thenReturn("사유 문장");
 
         Verdict verdict = decisionEngine.decide(contextWith("contract", null), policy);
 
-        assertThat(verdict.status()).isEqualTo(ScanStatus.REVIEW);
+        assertThat(verdict.status()).isEqualTo(ScanStatus.ALLOW);
+    }
+
+    /** 사내 발송이 실제로 겪던 상황 — 등록된 룰이 전부 OUTBOUND 라 하나도 안 걸린다. */
+    @Test
+    void 사외룰만_있는_정책에서_사내발송은_통과한다() {
+        Policy policy = new Policy(1L, List.of(
+                new Rule(null, "partner", null, null, ScanStatus.REVIEW),
+                new Rule(null, "personal_email", null, null, ScanStatus.REVIEW),
+                new Rule(null, "external", null, null, ScanStatus.REVIEW)
+        ));
+        when(generator.generate(anyString())).thenReturn("사유 문장");
+
+        Verdict verdict = decisionEngine.decide(contextWith("business_card", "internal"), policy);
+
+        assertThat(verdict.status()).isEqualTo(ScanStatus.ALLOW);
     }
 
     @Test
