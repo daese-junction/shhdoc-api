@@ -75,7 +75,8 @@ public class PolicyServiceImpl implements PolicyService {
 
         return categories.stream()
                 .flatMap(category -> recipientTypes.stream()
-                        .map(recipientType -> new Rule(category, recipientType, sensitiveType, classification, decision)))
+                        .map(recipientType -> new Rule(rule.getId(), category, recipientType, sensitiveType,
+                                classification, decision)))
                 .toList();
     }
 

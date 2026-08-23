@@ -116,6 +116,38 @@ class DecisionEngineImplTest {
         assertThat(verdict.status()).isEqualTo(ScanStatus.ALLOW);
     }
 
+    /**
+     * 운영에서 급여대장이 사외로 나갔던 상황이다. 조건이 전부 비어 있는 ALLOW 룰(#47)이
+     * 제한 룰(#48)보다 id 가 작다는 이유만으로 먼저 평가돼 전부를 가렸다.
+     * 순서가 아니라 조건을 더 많이 건 쪽이 이겨야 한다.
+     */
+    @Test
+    void 전체허용_룰이_먼저여도_제한_룰이_이긴다() {
+        Policy policy = new Policy(1L, List.of(
+                new Rule(47L, null, null, null, null, ScanStatus.ALLOW),
+                new Rule(48L, "payslip", "external", null, null, ScanStatus.REVIEW)
+        ));
+        when(generator.generate(anyString())).thenReturn("사유 문장");
+
+        Verdict verdict = decisionEngine.decide(contextWith("payslip", "external"), policy);
+
+        assertThat(verdict.status()).isEqualTo(ScanStatus.REVIEW);
+    }
+
+    /** 제한 룰이 하나도 안 걸리면 전체허용 룰이 그대로 적용된다. */
+    @Test
+    void 제한_룰이_안_걸리면_전체허용_룰로_통과한다() {
+        Policy policy = new Policy(1L, List.of(
+                new Rule(47L, null, null, null, null, ScanStatus.ALLOW),
+                new Rule(48L, "payslip", "external", null, null, ScanStatus.REVIEW)
+        ));
+        when(generator.generate(anyString())).thenReturn("사유 문장");
+
+        Verdict verdict = decisionEngine.decide(contextWith("business_card", "internal"), policy);
+
+        assertThat(verdict.status()).isEqualTo(ScanStatus.ALLOW);
+    }
+
     /** 사내 발송이 실제로 겪던 상황 — 등록된 룰이 전부 OUTBOUND 라 하나도 안 걸린다. */
     @Test
     void 사외룰만_있는_정책에서_사내발송은_통과한다() {
