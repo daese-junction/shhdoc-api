@@ -45,18 +45,11 @@ public class AttachmentService {
         long size = storage.requireUploaded(request.storageKey());
         String hash = storage.sha256(request.storageKey());
 
-        Attachment attachment = new Attachment(email, request.filename(), size, request.storageKey(), hash);
-        // 같은 파일을 이미 검사했다면 판정을 그대로 가져온다 (ERD의 content_hash 재사용).
-        // DONE 만 본다 — 실패(FAILED)를 물려받으면 그 파일이 영원히 재검사되지 않는다.
-        attachmentRepository.findFirstByContentHashAndScanStatusAndEmailSenderCompanyIdOrderByIdAsc(
-                        hash, ScanStatus.DONE, email.getSender().getCompany().getId())
-                .ifPresent(attachment::reuseVerdictOf);
-
-        Attachment saved = attachmentRepository.save(attachment);
-        // 판정을 물려받았으면 다시 분석할 이유가 없다.
-        if (saved.getScanStatus() == ScanStatus.PENDING) {
-            eventPublisher.publishEvent(new AttachmentRegisteredEvent(saved.getId()));
-        }
+        // 해시가 같으면 이전 판정을 물려받는 재사용이 있었는데 걷어냈다. 매번 새로 검사한다.
+        // content_hash 는 계속 저장한다 — 되살릴 때 스키마를 건드리지 않으려고.
+        Attachment saved = attachmentRepository.save(
+                new Attachment(email, request.filename(), size, request.storageKey(), hash));
+        eventPublisher.publishEvent(new AttachmentRegisteredEvent(saved.getId()));
         return AttachmentResponse.from(saved);
     }
 
