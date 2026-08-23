@@ -35,6 +35,9 @@ class AttachmentScanBridgeTest {
     @Mock
     private Gateway gateway;
 
+    @Mock
+    private com.shhdoc.email.EmailService emailService;
+
     @InjectMocks
     private AttachmentScanBridge bridge;
 
@@ -79,8 +82,8 @@ class AttachmentScanBridgeTest {
     }
 
     /**
-     * 검사 실패는 차단이 아니다. DONE/BLOCKED 로 굳으면 해시 재사용이 그 실패를 물려받아
-     * 같은 파일이 영원히 차단되고, 재검사 대상에서도 빠진다.
+     * 검사 실패는 차단이 아니다. DONE/BLOCKED 로 굳으면 판정이 난 것처럼 보여
+     * 재검사 대상에서 빠지고, 아무도 열어보지 못한 파일이 통과 판정으로 남는다.
      */
     @Test
     void 검사_실패는_FAILED_로_기록되고_판정은_비워둔다() {
@@ -93,6 +96,21 @@ class AttachmentScanBridgeTest {
         assertThat(attachment.getScanStatus()).isEqualTo(com.shhdoc.attachment.ScanStatus.FAILED);
         assertThat(attachment.getVerdict()).isNull();
         assertThat(attachment.getReason()).isEqualTo("자동 검사를 완료하지 못했습니다. 관리자 확인이 필요합니다.");
+    }
+
+    /**
+     * 판정을 기록한 뒤 메일도 다시 본다. 승인 대기에 묶인 메일의 마지막 보류 사유가
+     * 이 판정으로 사라졌을 수 있고, 그러면 발송함으로 풀어줘야 한다.
+     */
+    @Test
+    void 판정을_기록한_뒤_메일_보류가_풀렸는지_확인한다() {
+        Attachment attachment = attachment();
+        given(attachmentRepository.findByStorageKey("key-1")).willReturn(Optional.of(attachment));
+
+        bridge.applyDecision(new DecisionResponse(30L,
+                List.of(new AttachmentResult("key-1", ScanStatus.ALLOW, "공개 가능한 문서입니다."))));
+
+        verify(emailService).releaseIfCleared(30L);
     }
 
     /** 첨부가 지워진 뒤에 판정이 돌아올 수 있다. 그때 터지면 같은 응답의 나머지 첨부까지 날아간다. */

@@ -66,10 +66,31 @@ class EmailServiceTest {
         assertThat(response.sentAt()).isNotNull();
     }
 
+    /**
+     * 승인 트리거는 수신자가 아니라 첨부 판정이다. 사외 수신자는 첨부를 검사할 때
+     * {@code ContextBuilder} 가 recipientType 으로 반영하고, 위험하면 그때 BLOCKED 가 찍힌다.
+     */
     @Test
-    void 사외_수신자가_하나라도_있으면_승인_대기로_간다() {
+    void 첨부가_깨끗하면_사외_수신자가_있어도_바로_발송된다() {
         given(emailRepository.findByIdAndSenderId(1L, 1L))
                 .willReturn(Optional.of(draftTo("carol@shhdoc.com", "partner@example.com")));
+
+        var response = emailService.send(1L, 1L);
+
+        assertThat(response.status()).isEqualTo(EmailStatus.SENT);
+        assertThat(response.sentAt()).isNotNull();
+    }
+
+    @Test
+    void 차단_판정_첨부가_있으면_승인_대기로_간다() {
+        given(emailRepository.findByIdAndSenderId(1L, 1L))
+                .willReturn(Optional.of(draftTo("partner@example.com")));
+        given(attachmentRepository.existsByEmailIdAndScanStatus(
+                1L, com.shhdoc.attachment.ScanStatus.PENDING)).willReturn(false);
+        given(attachmentRepository.existsByEmailIdAndScanStatus(
+                1L, com.shhdoc.attachment.ScanStatus.FAILED)).willReturn(false);
+        given(attachmentRepository.existsByEmailIdAndVerdict(
+                1L, com.shhdoc.attachment.Verdict.BLOCKED)).willReturn(true);
 
         var response = emailService.send(1L, 1L);
 
@@ -95,6 +116,56 @@ class EmailServiceTest {
 
         assertThat(response.status()).isEqualTo(EmailStatus.BLOCKED);
         assertThat(response.sentAt()).isNull();
+    }
+
+    private Email blockedTo(String... addresses) {
+        Email email = draftTo(addresses);
+        email.markBlocked();
+        return email;
+    }
+
+    @Test
+    void 판정이_늦게_깨끗해지면_승인_대기_메일이_발송함으로_풀린다() {
+        Email email = blockedTo("partner@example.com");
+        given(emailRepository.findById(1L)).willReturn(Optional.of(email));
+        given(attachmentRepository.existsByEmailIdAndScanStatus(
+                1L, com.shhdoc.attachment.ScanStatus.PENDING)).willReturn(false);
+        given(attachmentRepository.existsByEmailIdAndScanStatus(
+                1L, com.shhdoc.attachment.ScanStatus.FAILED)).willReturn(false);
+        given(attachmentRepository.existsByEmailIdAndVerdict(
+                1L, com.shhdoc.attachment.Verdict.BLOCKED)).willReturn(false);
+
+        emailService.releaseIfCleared(1L);
+
+        assertThat(email.getStatus()).isEqualTo(EmailStatus.SENT);
+        assertThat(email.getSentAt()).isNotNull();
+    }
+
+    @Test
+    void 차단_첨부가_남아_있으면_승인_대기_그대로_둔다() {
+        Email email = blockedTo("partner@example.com");
+        given(emailRepository.findById(1L)).willReturn(Optional.of(email));
+        given(attachmentRepository.existsByEmailIdAndScanStatus(
+                1L, com.shhdoc.attachment.ScanStatus.PENDING)).willReturn(false);
+        given(attachmentRepository.existsByEmailIdAndScanStatus(
+                1L, com.shhdoc.attachment.ScanStatus.FAILED)).willReturn(false);
+        given(attachmentRepository.existsByEmailIdAndVerdict(
+                1L, com.shhdoc.attachment.Verdict.BLOCKED)).willReturn(true);
+
+        emailService.releaseIfCleared(1L);
+
+        assertThat(email.getStatus()).isEqualTo(EmailStatus.BLOCKED);
+    }
+
+    /** 아직 보내기를 누르지 않은 메일이다. 검사가 끝났다고 대신 발송하면 안 된다. */
+    @Test
+    void 초안은_검사가_끝나도_자동_발송하지_않는다() {
+        Email email = draftTo("partner@example.com");
+        given(emailRepository.findById(1L)).willReturn(Optional.of(email));
+
+        emailService.releaseIfCleared(1L);
+
+        assertThat(email.getStatus()).isEqualTo(EmailStatus.DRAFT);
     }
 
     @Test

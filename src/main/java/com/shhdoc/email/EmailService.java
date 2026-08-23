@@ -64,7 +64,7 @@ public class EmailService {
         emailRepository.delete(email);
     }
 
-    /** 발송 시도. 사외 수신자가 있으면 관리자 승인 대기로 넘어간다. */
+    /** 발송 시도. 첨부 판정이 깨끗하지 않으면 관리자 승인 대기로 넘어간다. */
     @Transactional
     public EmailDetailResponse send(Long userId, Long emailId) {
         Email email = findMine(userId, emailId);
@@ -77,17 +77,43 @@ public class EmailService {
             throw new ApiException(HttpStatus.CONFLICT, "첨부파일을 검사하는 중입니다. 잠시 후 다시 시도해주세요.");
         }
 
-        // 사외 발송은 그 자체로 보류 대상이고, 차단 판정이 난 첨부가 있으면 사내라도 보류한다.
-        // 검사에 실패한 첨부(FAILED)도 보류다 — 판정이 비어 있어 BLOCKED 조건에 안 걸리는데,
-        // 그대로 두면 아무도 열어보지 못한 파일이 통과한다.
-        if (attachmentRepository.existsByEmailIdAndVerdict(emailId, Verdict.BLOCKED)
-                || attachmentRepository.existsByEmailIdAndScanStatus(emailId, ScanStatus.FAILED)
-                || email.hasExternalRecipient()) {
+        if (mustHold(emailId)) {
             email.markBlocked();
         } else {
             email.markSent();
         }
         return EmailDetailResponse.from(email);
+    }
+
+    /**
+     * 검사 결과가 늦게 도착해 보류 사유가 사라진 메일을 발송함으로 옮긴다.
+     *
+     * <p>{@code BLOCKED} 에서만 푼다. {@code DRAFT} 는 아직 보내기를 누르지 않은 메일이라
+     * 검사가 끝났다고 대신 발송하면 안 되고, {@code REJECTED} 는 관리자가 명시적으로 거절한
+     * 것이라 되살리면 안 된다.
+     */
+    @Transactional
+    public void releaseIfCleared(Long emailId) {
+        emailRepository.findById(emailId)
+                .filter(email -> email.getStatus() == EmailStatus.BLOCKED)
+                .filter(email -> !mustHold(emailId))
+                .ifPresent(Email::markSent);
+    }
+
+    /**
+     * 관리자가 봐야 하는 첨부가 남았는지. 승인 트리거는 수신자가 아니라 첨부 판정이다 —
+     * 사외 발송이어도 첨부가 깨끗하면 그냥 나간다.
+     *
+     * <p>{@code FAILED} 도 보류다. 판정이 비어 있어 {@code BLOCKED} 조건에 안 걸리는데,
+     * 그대로 두면 아무도 열어보지 못한 파일이 통과한다.
+     *
+     * <p>{@code PENDING} 도 보류다. {@code send} 는 앞에서 409 로 막지만
+     * {@link #releaseIfCleared} 로 들어올 때는 아직 안 끝난 첨부가 남아 있을 수 있다.
+     */
+    private boolean mustHold(Long emailId) {
+        return attachmentRepository.existsByEmailIdAndScanStatus(emailId, ScanStatus.PENDING)
+                || attachmentRepository.existsByEmailIdAndScanStatus(emailId, ScanStatus.FAILED)
+                || attachmentRepository.existsByEmailIdAndVerdict(emailId, Verdict.BLOCKED);
     }
 
     public List<EmailResponse> queue(Long companyId, EmailStatus status) {
