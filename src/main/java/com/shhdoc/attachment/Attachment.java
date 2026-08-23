@@ -72,14 +72,6 @@ public class Attachment {
         this.scanStatus = ScanStatus.PENDING;
     }
 
-    /** 이전에 같은 해시로 끝난 판정을 그대로 가져온다. AI를 다시 부르지 않는다. */
-    public void reuseVerdictOf(Attachment previous) {
-        this.scanStatus = previous.getScanStatus();
-        this.verdict = previous.getVerdict();
-        this.reason = previous.getReason();
-        this.scannedAt = previous.getScannedAt();
-    }
-
     /** 다시 검사하려고 판정을 지운다. 이전 사유가 남아 있으면 화면이 낡은 이유를 계속 보여준다. */
     public void resetScan() {
         this.scanStatus = ScanStatus.PENDING;

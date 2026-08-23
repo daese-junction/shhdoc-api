@@ -29,14 +29,7 @@ import org.springframework.http.HttpStatus;
 @ExtendWith(MockitoExtension.class)
 class AttachmentServiceTest {
 
-    private static final Long COMPANY_ID = 1L;
     private static final Company COMPANY = new Company("쉿닥", "shhdoc.com");
-
-    static {
-        // 판정 재사용이 회사 안에서만 일어나는지 보려면 id 가 있어야 한다.
-        // 생성자로는 못 넣는다 (JPA 가 채우는 필드).
-        org.springframework.test.util.ReflectionTestUtils.setField(COMPANY, "id", COMPANY_ID);
-    }
 
     @Mock
     private AttachmentRepository attachmentRepository;
@@ -83,44 +76,22 @@ class AttachmentServiceTest {
         verify(storage, never()).presignUpload(anyString());
     }
 
+    /** 재사용을 걷어냈다. 이미 검사한 해시든 처음 보는 파일이든 똑같이 PENDING 으로 등록된다. */
     @Test
-    void 같은_해시의_파일은_이전_판정을_재사용한다() {
+    void 이미_검사한_해시여도_다시_검사_대기_상태로_등록된다() {
         Email email = draft();
         given(emailRepository.findByIdAndSenderId(1L, 1L)).willReturn(Optional.of(email));
-        given(storage.requireUploaded("key-2")).willReturn(100L);
+        given(storage.requireUploaded("key-2")).willReturn(2048L);
         given(storage.sha256("key-2")).willReturn("hash-abc");
-
-        Attachment previous = new Attachment(email, "이전.pdf", 100L, "key-1", "hash-abc");
-        previous.recordVerdict(Verdict.BLOCKED, "내부 설계도로 판단됨");
-        given(attachmentRepository.findFirstByContentHashAndScanStatusAndEmailSenderCompanyIdOrderByIdAsc(
-                "hash-abc", ScanStatus.DONE, COMPANY_ID))
-                .willReturn(Optional.of(previous));
         given(attachmentRepository.save(any(Attachment.class))).willAnswer(call -> call.getArgument(0));
 
         var response = attachmentService.register(1L, 1L,
                 new RegisterAttachmentRequest("key-2", "새로_올린.pdf"));
 
-        assertThat(response.scanStatus()).isEqualTo(ScanStatus.DONE);
-        assertThat(response.verdict()).isEqualTo(Verdict.BLOCKED);
-        assertThat(response.reason()).isEqualTo("내부 설계도로 판단됨");
-    }
-
-    @Test
-    void 처음_보는_파일은_검사_대기_상태로_등록된다() {
-        Email email = draft();
-        given(emailRepository.findByIdAndSenderId(1L, 1L)).willReturn(Optional.of(email));
-        given(storage.requireUploaded("key-1")).willReturn(2048L);
-        given(storage.sha256("key-1")).willReturn("hash-new");
-        given(attachmentRepository.findFirstByContentHashAndScanStatusAndEmailSenderCompanyIdOrderByIdAsc(
-                "hash-new", ScanStatus.DONE, COMPANY_ID))
-                .willReturn(Optional.empty());
-        given(attachmentRepository.save(any(Attachment.class))).willAnswer(call -> call.getArgument(0));
-
-        var response = attachmentService.register(1L, 1L, new RegisterAttachmentRequest("key-1", "설계도.pdf"));
-
         assertThat(response.scanStatus()).isEqualTo(ScanStatus.PENDING);
         assertThat(response.verdict()).isNull();
         assertThat(response.sizeBytes()).isEqualTo(2048L);
+        verify(eventPublisher).publishEvent(any(AttachmentRegisteredEvent.class));
     }
 
     @Test
