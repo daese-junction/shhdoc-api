@@ -2,6 +2,7 @@ package com.shhdoc.upstage.decision;
 
 import com.shhdoc.upstage.context.MailContext;
 import com.shhdoc.upstage.dto.ScanStatus;
+import com.shhdoc.upstage.pipeline.generate.GenerationResult;
 import com.shhdoc.upstage.pipeline.generate.Generator;
 import com.shhdoc.upstage.policy.Policy;
 import com.shhdoc.upstage.policy.Rule;
@@ -35,11 +36,22 @@ public class DecisionEngineImpl implements DecisionEngine {
 
         // 아무 룰도 안 걸리면 통과다. 정책은 "막을 것"만 나열하는 모델이라 여기서 REVIEW 를
         // 주면 룰과 무관한 문서까지 전부 보류로 떨어진다 — 명함 한 장도 승인을 받아야 했다.
-        ScanStatus status = decided.map(Rule::decision).orElse(ScanStatus.ALLOW);
+        ScanStatus ruleStatus = decided.map(Rule::decision).orElse(ScanStatus.ALLOW);
 
-        logBasis(context, policy, matched, decided, status);
-        String reason = generator.generate(buildReasonPrompt(context, status));
-        return new Verdict(status, reason);
+        logBasis(context, policy, matched, decided, ruleStatus);
+        GenerationResult generation = generator.generate(buildReasonPrompt(context, ruleStatus));
+
+        // 최종 판정은 룰엔진이 낸다 — 결정론적이고 감사 가능해야 하기 때문이다. AI는 룰이
+        // "매칭되는 게 없어 ALLOW"로 흘려보낸 케이스가 실제로는 위험해 보이는지 검토하는
+        // 보조신호만 준다. 그래서 한쪽 방향으로만 작동한다 — ALLOW를 REVIEW로 올릴 순 있어도
+        // 룰이 이미 REVIEW로 정한 걸 AI가 ALLOW로 낮추진 못한다(그러면 룰엔진이 무의미해진다).
+        ScanStatus status = ruleStatus;
+        if (ruleStatus == ScanStatus.ALLOW && generation.escalateToReview()) {
+            status = ScanStatus.REVIEW;
+            log.info("[DECISION] AI 에스컬레이션: 룰엔진 ALLOW → REVIEW로 상향");
+        }
+
+        return new Verdict(status, generation.reason());
     }
 
     /** 조건을 많이 건 룰이 이기고, 조건 수가 같으면 엄격한 쪽이 이긴다. */
@@ -130,7 +142,7 @@ public class DecisionEngineImpl implements DecisionEngine {
         return rule.classification() == null || rule.classification().equals(context.classification());
     }
 
-    private String buildReasonPrompt(MailContext context, ScanStatus status) {
+    private String buildReasonPrompt(MailContext context, ScanStatus ruleStatus) {
         String marking = context.confidentialityMarking() == null || context.confidentialityMarking().isBlank()
                 ? "없음"
                 : context.confidentialityMarking();
@@ -142,13 +154,19 @@ public class DecisionEngineImpl implements DecisionEngine {
         String classification = context.classification() == null ? "미분류" : context.classification();
 
         return """
-                다음 근거로 이메일 발송에 대한 판정 사유를 한 문장으로 작성해줘.
+                아래 근거로 이메일 발송 건의 정책엔진 판정에 대한 사유(reason)를 한 문장으로 작성해줘.
                 - 문서유형: %s
                 - 수신자 유형: %s
                 - 검출된 민감정보 유형: %s
                 - 보안등급: %s
                 - 대외비 표시: %s
-                - 판정: %s
-                """.formatted(context.category(), recipientType, sensitiveTypes, classification, marking, status);
+                - 정책엔진 판정: %s
+
+                정책엔진 판정이 ALLOW인 경우에만: 등록된 정책 규칙에 걸리지 않아서 통과된 것뿐이다.
+                위 근거를 보고 실제로는 위험해 보이면(예: 민감정보 여러 개가 겹치거나, 외부/개인메일
+                수신자에게 대외비·기밀 문서가 나가는 등 규칙이 못 잡은 조합) escalate_to_review를
+                true로 답해라. 안전해 보이면 false. 정책엔진 판정이 이미 REVIEW면 escalate_to_review는
+                항상 false로 답해라 — 이미 보류 상태라 올릴 필요가 없다.
+                """.formatted(context.category(), recipientType, sensitiveTypes, classification, marking, ruleStatus);
     }
 }

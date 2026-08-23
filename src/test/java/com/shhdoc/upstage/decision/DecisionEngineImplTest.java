@@ -2,6 +2,7 @@ package com.shhdoc.upstage.decision;
 
 import com.shhdoc.upstage.context.MailContext;
 import com.shhdoc.upstage.dto.ScanStatus;
+import com.shhdoc.upstage.pipeline.generate.GenerationResult;
 import com.shhdoc.upstage.pipeline.generate.Generator;
 import com.shhdoc.upstage.policy.Policy;
 import com.shhdoc.upstage.policy.Rule;
@@ -49,7 +50,7 @@ class DecisionEngineImplTest {
                 new Rule("payslip", null, null, null, ScanStatus.REVIEW),
                 new Rule(null, null, null, null, ScanStatus.ALLOW)
         ));
-        when(generator.generate(anyString())).thenReturn("사유 문장");
+        when(generator.generate(anyString())).thenReturn(new GenerationResult("사유 문장", false));
 
         Verdict verdict = decisionEngine.decide(contextWith("payslip", null), policy);
 
@@ -64,7 +65,7 @@ class DecisionEngineImplTest {
                 new Rule("payslip", null, null, null, ScanStatus.REVIEW),
                 new Rule(null, null, null, null, ScanStatus.ALLOW)
         ));
-        when(generator.generate(anyString())).thenReturn("사유 문장");
+        when(generator.generate(anyString())).thenReturn(new GenerationResult("사유 문장", false));
 
         Verdict verdict = decisionEngine.decide(contextWith("payslip", "internal"), policy);
 
@@ -77,7 +78,7 @@ class DecisionEngineImplTest {
                 new Rule("payslip", "approved-partner", null, null, ScanStatus.ALLOW),
                 new Rule("payslip", null, null, null, ScanStatus.REVIEW)
         ));
-        when(generator.generate(anyString())).thenReturn("사유 문장");
+        when(generator.generate(anyString())).thenReturn(new GenerationResult("사유 문장", false));
 
         // context.recipientType()이 null(미해석)이라 "approved-partner" 룰과는 매칭 안 되고
         // 와일드카드(payslip, null) 룰로 떨어져야 한다.
@@ -92,7 +93,7 @@ class DecisionEngineImplTest {
                 new Rule("payslip", null, null, null, ScanStatus.REVIEW),
                 new Rule(null, null, null, null, ScanStatus.ALLOW)
         ));
-        when(generator.generate(anyString())).thenReturn("사유 문장");
+        when(generator.generate(anyString())).thenReturn(new GenerationResult("사유 문장", false));
 
         Verdict verdict = decisionEngine.decide(contextWith("contract", null), policy);
 
@@ -109,7 +110,7 @@ class DecisionEngineImplTest {
         Policy policy = new Policy(1L, List.of(
                 new Rule("payslip", null, null, null, ScanStatus.REVIEW)
         ));
-        when(generator.generate(anyString())).thenReturn("사유 문장");
+        when(generator.generate(anyString())).thenReturn(new GenerationResult("사유 문장", false));
 
         Verdict verdict = decisionEngine.decide(contextWith("contract", null), policy);
 
@@ -127,7 +128,7 @@ class DecisionEngineImplTest {
                 new Rule(47L, null, null, null, null, ScanStatus.ALLOW),
                 new Rule(48L, "payslip", "external", null, null, ScanStatus.REVIEW)
         ));
-        when(generator.generate(anyString())).thenReturn("사유 문장");
+        when(generator.generate(anyString())).thenReturn(new GenerationResult("사유 문장", false));
 
         Verdict verdict = decisionEngine.decide(contextWith("payslip", "external"), policy);
 
@@ -141,7 +142,7 @@ class DecisionEngineImplTest {
                 new Rule(47L, null, null, null, null, ScanStatus.ALLOW),
                 new Rule(48L, "payslip", "external", null, null, ScanStatus.REVIEW)
         ));
-        when(generator.generate(anyString())).thenReturn("사유 문장");
+        when(generator.generate(anyString())).thenReturn(new GenerationResult("사유 문장", false));
 
         Verdict verdict = decisionEngine.decide(contextWith("business_card", "internal"), policy);
 
@@ -156,7 +157,7 @@ class DecisionEngineImplTest {
                 new Rule(null, "personal_email", null, null, ScanStatus.REVIEW),
                 new Rule(null, "external", null, null, ScanStatus.REVIEW)
         ));
-        when(generator.generate(anyString())).thenReturn("사유 문장");
+        when(generator.generate(anyString())).thenReturn(new GenerationResult("사유 문장", false));
 
         Verdict verdict = decisionEngine.decide(contextWith("business_card", "internal"), policy);
 
@@ -169,7 +170,7 @@ class DecisionEngineImplTest {
                 new Rule(null, null, "CREDENTIAL", null, ScanStatus.REVIEW),
                 new Rule(null, null, null, null, ScanStatus.ALLOW)
         ));
-        when(generator.generate(anyString())).thenReturn("사유 문장");
+        when(generator.generate(anyString())).thenReturn(new GenerationResult("사유 문장", false));
 
         MailContext context = contextWith("payslip", null, List.of("PERSONAL", "CREDENTIAL"), null);
         Verdict verdict = decisionEngine.decide(context, policy);
@@ -183,7 +184,7 @@ class DecisionEngineImplTest {
                 new Rule(null, null, "CREDENTIAL", null, ScanStatus.REVIEW),
                 new Rule(null, null, null, null, ScanStatus.ALLOW)
         ));
-        when(generator.generate(anyString())).thenReturn("사유 문장");
+        when(generator.generate(anyString())).thenReturn(new GenerationResult("사유 문장", false));
 
         MailContext context = contextWith("payslip", null, List.of("PERSONAL"), null);
         Verdict verdict = decisionEngine.decide(context, policy);
@@ -197,12 +198,37 @@ class DecisionEngineImplTest {
                 new Rule(null, null, null, "SECRET", ScanStatus.REVIEW),
                 new Rule(null, null, null, null, ScanStatus.ALLOW)
         ));
-        when(generator.generate(anyString())).thenReturn("사유 문장");
+        when(generator.generate(anyString())).thenReturn(new GenerationResult("사유 문장", false));
 
         MailContext secretContext = contextWith("payslip", null, List.of(), "SECRET");
         MailContext confidentialContext = contextWith("payslip", null, List.of(), "CONFIDENTIAL");
 
         assertThat(decisionEngine.decide(secretContext, policy).status()).isEqualTo(ScanStatus.REVIEW);
         assertThat(decisionEngine.decide(confidentialContext, policy).status()).isEqualTo(ScanStatus.ALLOW);
+    }
+
+    /** 룰엔진이 ALLOW로 흘려보낸 걸 AI가 위험하다고 판단하면 REVIEW로 올린다. */
+    @Test
+    void 룰엔진_ALLOW를_AI가_위험하다고_판단하면_REVIEW로_올린다() {
+        Policy policy = new Policy(1L, List.of());
+        when(generator.generate(anyString())).thenReturn(new GenerationResult("여러 민감정보가 겹쳐 위험", true));
+
+        Verdict verdict = decisionEngine.decide(contextWith("contract", null), policy);
+
+        assertThat(verdict.status()).isEqualTo(ScanStatus.REVIEW);
+        assertThat(verdict.reason()).isEqualTo("여러 민감정보가 겹쳐 위험");
+    }
+
+    /** 룰엔진이 이미 REVIEW로 정한 건 AI가 escalate를 true로 줘도 그대로 REVIEW다 (내릴 수 없음). */
+    @Test
+    void 룰엔진_REVIEW는_AI_에스컬레이션과_무관하게_REVIEW로_유지된다() {
+        Policy policy = new Policy(1L, List.of(
+                new Rule(null, null, null, null, ScanStatus.REVIEW)
+        ));
+        when(generator.generate(anyString())).thenReturn(new GenerationResult("사유 문장", true));
+
+        Verdict verdict = decisionEngine.decide(contextWith("contract", null), policy);
+
+        assertThat(verdict.status()).isEqualTo(ScanStatus.REVIEW);
     }
 }

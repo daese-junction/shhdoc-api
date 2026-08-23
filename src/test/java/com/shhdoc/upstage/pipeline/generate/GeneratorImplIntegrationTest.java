@@ -26,18 +26,22 @@ class GeneratorImplIntegrationTest {
     }
 
     @Test
-    void generate는_판정사유_문장을_생성한다() {
+    void generate는_판정사유와_에스컬레이션_신호를_생성한다() {
         String prompt = """
-                다음 근거로 이메일 발송에 대한 판정 사유를 한 문장으로 작성해줘.
+                아래 근거로 이메일 발송 건의 정책엔진 판정에 대한 사유(reason)를 한 문장으로 작성해줘.
                 - 문서유형: 급여명세서
                 - 개인정보 포함: 있음 (성명, 계좌번호)
                 - 수신자: 외부 도메인 (승인된 파트너 아님)
-                - 정책: 급여정보는 승인된 파트너 외 외부 발송 시 REVIEW
+                - 정책엔진 판정: REVIEW (급여정보는 승인된 파트너 외 외부 발송 시 REVIEW)
+
+                정책엔진 판정이 ALLOW인 경우에만 escalate_to_review를 검토해라. 이미 REVIEW면
+                escalate_to_review는 항상 false로 답해라.
                 """;
 
-        String result = generator.generate(prompt);
+        GenerationResult result = generator.generate(prompt);
 
-        log.info("generated reason: {}", result);
-        assertThat(result).isNotBlank();
+        log.info("generated result: {}", result);
+        assertThat(result.reason()).isNotBlank();
+        assertThat(result.escalateToReview()).isFalse();
     }
 }
