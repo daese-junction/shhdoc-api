@@ -22,7 +22,11 @@ public class DecisionEngineImpl implements DecisionEngine {
                 .filter(rule -> matches(rule, context))
                 .findFirst()
                 .map(Rule::decision)
-                .orElse(ScanStatus.REVIEW);
+                // 아무 룰도 안 걸리면 통과다. 정책은 "막을 것"만 나열하는 모델이라
+                // (등록된 룰이 전부 BLOCK/REVIEW) 여기서 REVIEW 를 주면 룰과 무관한 문서까지
+                // 전부 보류로 떨어진다 — 명함 한 장도 승인을 받아야 했다.
+                // 사외 발송은 이 판정과 별개로 EmailService.send 가 항상 막는다.
+                .orElse(ScanStatus.ALLOW);
 
         String reason = generator.generate(buildReasonPrompt(context, status));
         log.info("[DECISION] category={} recipientType={} sensitiveTypes={} classification={} -> status={}",
